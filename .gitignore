@@ -1,0 +1,17 @@
+# Binaries
+bin/
+*.exe
+*.test
+
+# Environment configuration
+.env
+
+# Local Uploads
+uploads/
+resumes/
+avatars/
+logos/
+
+# OS files
+.DS_Store
+Thumbs.db

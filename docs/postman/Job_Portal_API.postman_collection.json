@@ -1,0 +1,1018 @@
+{
+  "info": {
+    "_postman_id": "4020a6fa-fa77-49fb-be9c-29b11b7dfb81",
+    "name": "Job Portal API",
+    "description": "Postman collection for testing the Online Job Portal Go + MongoDB REST API.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "00 Health",
+      "item": [
+        {
+          "name": "GET Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/health",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "GET Ready",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/ready",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["ready"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 Auth",
+      "item": [
+        {
+          "name": "POST Register Seeker",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john.seeker@example.com\",\n  \"phone\": \"+1 (555) 000-0000\",\n  \"experience\": \"mid\",\n  \"password\": \"password123\",\n  \"confirmPassword\": \"password123\",\n  \"termsAccepted\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register/seeker",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register", "seeker"]
+            }
+          }
+        },
+        {
+          "name": "POST Register Employer",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"companyName\": \"Innovate Tech Solutions\",\n  \"email\": \"hr@innovatetech.com\",\n  \"website\": \"https://innovatetech.com\",\n  \"industry\": \"technology\",\n  \"companySize\": \"500\",\n  \"foundedYear\": 2015,\n  \"location\": \"San Francisco, CA\",\n  \"description\": \"At least 100 characters description of Innovate Tech Solutions. We build state of the art microservices and scalable cloud platforms.\",\n  \"password\": \"password123\",\n  \"confirmPassword\": \"password123\",\n  \"termsAccepted\": true,\n  \"verifiedAuthorized\": true,\n  \"marketingOptIn\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register/employer",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register", "employer"]
+            }
+          }
+        },
+        {
+          "name": "POST Login Seeker",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  const data = json.data || json;",
+                  "  if (data.accessToken) {",
+                  "    pm.environment.set(\"accessToken\", data.accessToken);",
+                  "  }",
+                  "  if (data.refreshToken) {",
+                  "    pm.environment.set(\"refreshToken\", data.refreshToken);",
+                  "  }",
+                  "  if (data.user && data.user.id) {",
+                  "    pm.environment.set(\"userId\", data.user.id);",
+                  "  }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{seekerEmail}}\",\n  \"password\": \"{{seekerPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "POST Login Company",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  const data = json.data || json;",
+                  "  if (data.accessToken) {",
+                  "    pm.environment.set(\"accessToken\", data.accessToken);",
+                  "  }",
+                  "  if (data.refreshToken) {",
+                  "    pm.environment.set(\"refreshToken\", data.refreshToken);",
+                  "  }",
+                  "  if (data.user && data.user.companyId) {",
+                  "    pm.environment.set(\"companyId\", data.user.companyId);",
+                  "  }",
+                  "  if (data.user && data.user.id) {",
+                  "    pm.environment.set(\"userId\", data.user.id);",
+                  "  }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{companyEmail}}\",\n  \"password\": \"{{companyPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "GET Me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "me"]
+            }
+          }
+        },
+        {
+          "name": "POST Refresh",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "refresh"]
+            }
+          }
+        },
+        {
+          "name": "POST Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "logout"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 Public Jobs",
+      "item": [
+        {
+          "name": "GET List Jobs",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/jobs?page=1&limit=10&sort=newest",
+              "host": ["{{baseUrl}}"],
+              "path": ["jobs"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
+                { "key": "sort", "value": "newest" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET List Jobs (filters)",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/jobs?jobType=full-time&workMode=remote&experienceLevel=senior&category=engineering&q=Go",
+              "host": ["{{baseUrl}}"],
+              "path": ["jobs"],
+              "query": [
+                { "key": "jobType", "value": "full-time" },
+                { "key": "workMode", "value": "remote" },
+                { "key": "experienceLevel", "value": "senior" },
+                { "key": "category", "value": "engineering" },
+                { "key": "q", "value": "Go" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Job Detail",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/jobs/{{jobId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["jobs", "{{jobId}}"]
+            }
+          }
+        },
+        {
+          "name": "GET Similar Jobs",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/jobs/{{jobId}}/similar",
+              "host": ["{{baseUrl}}"],
+              "path": ["jobs", "{{jobId}}", "similar"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 Seeker — Apply & Applications",
+      "item": [
+        {
+          "name": "POST Apply to Job (multipart)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  const data = json.data || json;",
+                  "  if (data.id) pm.environment.set(\"applicationId\", data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "resume",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "coverMessage",
+                  "value": "I am excited to apply for this position and bring my experience to the team.",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/jobs/{{jobId}}/applications",
+              "host": ["{{baseUrl}}"],
+              "path": ["jobs", "{{jobId}}", "applications"]
+            }
+          }
+        },
+        {
+          "name": "GET My Applications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/applications/me?page=1&limit=10&status=pending",
+              "host": ["{{baseUrl}}"],
+              "path": ["applications", "me"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
+                { "key": "status", "value": "pending" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Application by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/applications/{{applicationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["applications", "{{applicationId}}"]
+            }
+          }
+        },
+        {
+          "name": "POST Withdraw Application",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/applications/{{applicationId}}/withdraw",
+              "host": ["{{baseUrl}}"],
+              "path": ["applications", "{{applicationId}}", "withdraw"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 Seeker — Profile",
+      "item": [
+        {
+          "name": "GET Profile Me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/profile/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["profile", "me"]
+            }
+          }
+        },
+        {
+          "name": "PUT Profile Me",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe Updated\",\n  \"phone\": \"+1 (415) 555-0123\",\n  \"title\": \"Lead Full Stack Developer\",\n  \"city\": \"San Francisco\",\n  \"state\": \"California\",\n  \"country\": \"United States\",\n  \"zipcode\": \"94102\",\n  \"bio\": \"Passionate lead software engineer specialized in building SaaS applications using Go, React, and MongoDB.\",\n  \"skills\": [\"Go\", \"React\", \"TypeScript\", \"MongoDB\", \"Redis\", \"Docker\"],\n  \"linkedin\": \"https://linkedin.com/in/johndoe\",\n  \"github\": \"https://github.com/johndoe\",\n  \"portfolio\": \"https://johndoe.dev\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/profile/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["profile", "me"]
+            }
+          }
+        },
+        {
+          "name": "POST Upload Avatar",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "avatar",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/profile/me/avatar",
+              "host": ["{{baseUrl}}"],
+              "path": ["profile", "me", "avatar"]
+            }
+          }
+        },
+        {
+          "name": "DELETE Remove Avatar",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/profile/me/avatar",
+              "host": ["{{baseUrl}}"],
+              "path": ["profile", "me", "avatar"]
+            }
+          }
+        },
+        {
+          "name": "POST Upload Resume",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "resume",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/profile/me/resume",
+              "host": ["{{baseUrl}}"],
+              "path": ["profile", "me", "resume"]
+            }
+          }
+        },
+        {
+          "name": "POST Add Experience",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company\": \"SaaS Innovations Inc.\",\n  \"title\": \"Senior Software Engineer\",\n  \"location\": \"Remote\",\n  \"startDate\": \"2024-06\",\n  \"endDate\": \"\",\n  \"current\": true,\n  \"description\": \"Developing back-end cloud architectures using Go, designing REST APIs, and automating test coverage pipelines.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/profile/me/experience",
+              "host": ["{{baseUrl}}"],
+              "path": ["profile", "me", "experience"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 Seeker — Saved Jobs & Dashboard",
+      "item": [
+        {
+          "name": "GET Saved Jobs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/saved-jobs",
+              "host": ["{{baseUrl}}"],
+              "path": ["saved-jobs"]
+            }
+          }
+        },
+        {
+          "name": "POST Save Job",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jobId\": \"{{jobId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/saved-jobs",
+              "host": ["{{baseUrl}}"],
+              "path": ["saved-jobs"]
+            }
+          }
+        },
+        {
+          "name": "DELETE Unsave Job",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/saved-jobs/{{jobId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["saved-jobs", "{{jobId}}"]
+            }
+          }
+        },
+        {
+          "name": "GET Seeker Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/seeker",
+              "host": ["{{baseUrl}}"],
+              "path": ["dashboard", "seeker"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 Company — Jobs",
+      "item": [
+        {
+          "name": "GET Manage Jobs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/company/jobs?page=1&limit=10&status=active",
+              "host": ["{{baseUrl}}"],
+              "path": ["company", "jobs"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
+                { "key": "status", "value": "active" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Create Job (Publish)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  const data = json.data || json;",
+                  "  if (data.id) pm.environment.set(\"jobId\", data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Senior Go Developer\",\n  \"jobType\": \"full-time\",\n  \"workMode\": \"remote\",\n  \"category\": \"engineering\",\n  \"experienceLevel\": \"senior\",\n  \"location\": \"San Francisco\",\n  \"salaryMin\": 120000,\n  \"salaryMax\": 180000,\n  \"salaryPeriod\": \"yearly\",\n  \"description\": \"Build scalable web applications with Go microservices, React, and MongoDB Atlas.\",\n  \"requirements\": \"5+ years backend systems experience. Excellent REST API knowledge.\",\n  \"benefits\": \"Health coverage, dental, learning stipend and remote stipend.\",\n  \"skills\": [\"Go\", \"React\", \"Node.js\", \"MongoDB\"],\n  \"vacancies\": 1,\n  \"deadline\": \"2026-12-31T00:00:00Z\",\n  \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/company/jobs",
+              "host": ["{{baseUrl}}"],
+              "path": ["company", "jobs"]
+            }
+          }
+        },
+        {
+          "name": "POST Create Job (Draft)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Draft Intern designer\",\n  \"jobType\": \"internship\",\n  \"workMode\": \"hybrid\",\n  \"category\": \"design\",\n  \"experienceLevel\": \"entry\",\n  \"location\": \"San Francisco\",\n  \"skills\": [\"Figma\"],\n  \"vacancies\": 1,\n  \"status\": \"draft\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/company/jobs",
+              "host": ["{{baseUrl}}"],
+              "path": ["company", "jobs"]
+            }
+          }
+        },
+        {
+          "name": "PUT Update Job",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Senior Go Software Architect\",\n  \"salaryMin\": 140000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/company/jobs/{{jobId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["company", "jobs", "{{jobId}}"]
+            }
+          }
+        },
+        {
+          "name": "POST Publish Job",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/company/jobs/{{jobId}}/publish",
+              "host": ["{{baseUrl}}"],
+              "path": ["company", "jobs", "{{jobId}}", "publish"]
+            }
+          }
+        },
+        {
+          "name": "POST Close Job",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/company/jobs/{{jobId}}/close",
+              "host": ["{{baseUrl}}"],
+              "path": ["company", "jobs", "{{jobId}}", "close"]
+            }
+          }
+        },
+        {
+          "name": "POST Reactivate Job",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/company/jobs/{{jobId}}/reactivate",
+              "host": ["{{baseUrl}}"],
+              "path": ["company", "jobs", "{{jobId}}", "reactivate"]
+            }
+          }
+        },
+        {
+          "name": "POST Bulk Actions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jobIds\": [\"{{jobId}}\"],\n  \"action\": \"deactivate\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/company/jobs/bulk",
+              "host": ["{{baseUrl}}"],
+              "path": ["company", "jobs", "bulk"]
+            }
+          }
+        },
+        {
+          "name": "DELETE Job",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/company/jobs/{{jobId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["company", "jobs", "{{jobId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 Company — Applicants",
+      "item": [
+        {
+          "name": "GET Applicants",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  const data = json.data || json;",
+                  "  if (data.items && data.items[0]) {",
+                  "    pm.environment.set(\"applicationId\", data.items[0].id);",
+                  "  }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/company/applicants?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["company", "applicants"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Applicants (filters)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/company/applicants?status=pending&experienceLevel=senior&date=all",
+              "host": ["{{baseUrl}}"],
+              "path": ["company", "applicants"],
+              "query": [
+                { "key": "status", "value": "pending" },
+                { "key": "experienceLevel", "value": "senior" },
+                { "key": "date", "value": "all" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Applicant Detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/company/applicants/{{applicationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["company", "applicants", "{{applicationId}}"]
+            }
+          }
+        },
+        {
+          "name": "PATCH Shortlist",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"shortlisted\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/company/applicants/{{applicationId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["company", "applicants", "{{applicationId}}", "status"]
+            }
+          }
+        },
+        {
+          "name": "PATCH Reject",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"rejected\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/company/applicants/{{applicationId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["company", "applicants", "{{applicationId}}", "status"]
+            }
+          }
+        },
+        {
+          "name": "GET Download Resume",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/company/applicants/{{applicationId}}/resume",
+              "host": ["{{baseUrl}}"],
+              "path": ["company", "applicants", "{{applicationId}}", "resume"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 Company — Profile & Settings",
+      "item": [
+        {
+          "name": "GET Company Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/company/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["company", "profile"]
+            }
+          }
+        },
+        {
+          "name": "GET Company Settings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/company/settings",
+              "host": ["{{baseUrl}}"],
+              "path": ["company", "settings"]
+            }
+          }
+        },
+        {
+          "name": "PUT Company Settings",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"companyName\": \"TechCorp Solutions Global\",\n  \"industry\": \"Information Technology Services\",\n  \"companySize\": \"1000\",\n  \"companyType\": \"public\",\n  \"website\": \"https://techcorp.example.com\",\n  \"founded\": \"2015\",\n  \"about\": \"We provide highly concurrent software infrastructures and specialized SaaS database designs globally.\",\n  \"city\": \"San Francisco\",\n  \"state\": \"California\",\n  \"country\": \"United States\",\n  \"phone\": \"+1 (555) 123-4567\",\n  \"hrEmail\": \"hr@techcorp.example.com\",\n  \"supportEmail\": \"support@techcorp.example.com\",\n  \"linkedin\": \"https://linkedin.com/company/techcorp\",\n  \"twitter\": \"https://twitter.com/techcorp\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/company/settings",
+              "host": ["{{baseUrl}}"],
+              "path": ["company", "settings"]
+            }
+          }
+        },
+        {
+          "name": "POST Upload Logo",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "logo",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/company/logo",
+              "host": ["{{baseUrl}}"],
+              "path": ["company", "logo"]
+            }
+          }
+        },
+        {
+          "name": "GET Company Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/company",
+              "host": ["{{baseUrl}}"],
+              "path": ["dashboard", "company"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 Public Companies",
+      "item": [
+        {
+          "name": "GET Companies List",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/companies",
+              "host": ["{{baseUrl}}"],
+              "path": ["companies"]
+            }
+          }
+        },
+        {
+          "name": "GET Company by ID",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/companies/{{companyId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["companies", "{{companyId}}"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    }
+  ]
+}
