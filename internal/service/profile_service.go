@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"mime/multipart"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -80,6 +81,8 @@ func (s *profileService) UpdateProfile(ctx context.Context, userID primitive.Obj
 	userUpdated := false
 	if input.Name != "" && input.Name != user.Name {
 		user.Name = input.Name
+		nameParts := strings.Split(input.Name, " ")
+		user.FirstName = nameParts[0]
 		userUpdated = true
 	}
 	if input.Email != "" && input.Email != user.Email {
@@ -87,7 +90,10 @@ func (s *profileService) UpdateProfile(ctx context.Context, userID primitive.Obj
 		userUpdated = true
 	}
 	if userUpdated {
-		_ = s.userRepo.Update(ctx, user)
+		err = s.userRepo.Update(ctx, user)
+		if err != nil {
+			return nil, appErrors.NewInternalError("Failed to update user identity: " + err.Error())
+		}
 	}
 
 	// Update SeekerProfile fields

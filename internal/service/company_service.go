@@ -90,7 +90,9 @@ func (s *companyService) UpdateCompanySettings(ctx context.Context, ownerID prim
 	user, err := s.userRepo.FindByID(ctx, ownerID)
 	if err == nil && input.CompanyName != "" && input.CompanyName != user.Name {
 		user.Name = input.CompanyName
-		_ = s.userRepo.Update(ctx, user)
+		if err := s.userRepo.Update(ctx, user); err != nil {
+			return nil, appErrors.NewInternalError("Failed to update user identity: " + err.Error())
+		}
 	}
 
 	comp.Name = input.CompanyName
