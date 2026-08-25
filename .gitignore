@@ -7,10 +7,13 @@ bin/
 .env
 
 # Local Uploads
-uploads/
-resumes/
-avatars/
-logos/
+uploads/*
+!uploads/resumes/
+!uploads/resumes/default_resume.pdf
+!uploads/avatars/
+!uploads/avatars/default_avatar.jpg
+!uploads/logos/
+!uploads/logos/default_logo.png
 
 # OS files
 .DS_Store
