@@ -15,6 +15,7 @@ func SetupRouter(
 	companyHandler *handler.CompanyHandler,
 	dashboardHandler *handler.DashboardHandler,
 	healthHandler *handler.HealthHandler,
+	chatHandler *handler.ChatHandler,
 ) *gin.Engine {
 	r := gin.New()
 
@@ -142,6 +143,18 @@ func SetupRouter(
 		// 10. Public companies profile (Public)
 		api.GET("/companies", companyHandler.ListCompanies)
 		api.GET("/companies/:id", companyHandler.GetPublicCompanyProfile)
+
+		// 11. Chat routes (Authenticated)
+		chats := api.Group("/chats")
+		chats.Use(middleware.AuthRequired())
+		{
+			chats.POST("", chatHandler.CreateOrOpenRoom)
+			chats.GET("", chatHandler.ListUserRooms)
+			chats.GET("/:roomId/messages", chatHandler.GetRoomMessages)
+		}
+
+		// 12. WebSocket endpoint (Public routing, internally authenticated)
+		api.GET("/chats/:roomId/ws", chatHandler.HandleWebSocket)
 	}
 
 	// Own job detail for edit is mounted inside cJobs group

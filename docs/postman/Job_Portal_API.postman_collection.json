@@ -987,6 +987,95 @@
           }
         }
       ]
+    },
+    {
+      "name": "10 Live Chat",
+      "item": [
+        {
+          "name": "POST Create/Open Chat Room",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jobId\": \"{{jobId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/chats",
+              "host": ["{{baseUrl}}"],
+              "path": ["chats"]
+            }
+          }
+        },
+        {
+          "name": "GET List Chat Rooms",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chats",
+              "host": ["{{baseUrl}}"],
+              "path": ["chats"]
+            }
+          }
+        },
+        {
+          "name": "GET Chat Messages History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chats/{{roomId}}/messages?limit=50&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["chats", "{{roomId}}", "messages"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "WebSocket Live Connection",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "WebSocket endpoint. Connect using ws:// or wss:// instead of http://. Provide token query parameter.",
+            "url": {
+              "raw": "ws://localhost:8080/api/v1/chats/{{roomId}}/ws?token={{accessToken}}",
+              "protocol": "ws",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "chats",
+                "{{roomId}}",
+                "ws"
+              ],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
     }
   ],
   "auth": {

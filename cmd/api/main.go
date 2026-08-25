@@ -37,6 +37,7 @@ func main() {
 	jobRepo := repository.NewJobRepository(db)
 	appRepo := repository.NewApplicationRepository(db)
 	savedRepo := repository.NewSavedJobRepository(db)
+	chatRepo := repository.NewChatRepository(db)
 
 	// 5. Initialize Service Layer
 	storageService := service.NewStorageService()
@@ -47,6 +48,7 @@ func main() {
 	companyService := service.NewCompanyService(companyRepo, jobRepo, userRepo, storageService)
 	savedJobService := service.NewSavedJobService(savedRepo, jobRepo, jobService, companyRepo)
 	dashboardService := service.NewDashboardService(appRepo, jobRepo, savedRepo, profileRepo, appService, jobService)
+	chatService := service.NewChatService(chatRepo, userRepo, jobRepo, appRepo, companyRepo, profileRepo)
 
 	// 6. Initialize Handler Layer
 	authHandler := handler.NewAuthHandler(authService)
@@ -56,6 +58,7 @@ func main() {
 	companyHandler := handler.NewCompanyHandler(companyService)
 	dashboardHandler := handler.NewDashboardHandler(dashboardService)
 	healthHandler := handler.NewHealthHandler()
+	chatHandler := handler.NewChatHandler(chatService)
 
 	savedJobH := handler.NewSavedJobHandler(savedJobService)
 	router.InitSavedJobHandler(savedJobH)
@@ -69,6 +72,7 @@ func main() {
 		companyHandler,
 		dashboardHandler,
 		healthHandler,
+		chatHandler,
 	)
 
 	// 8. Start HTTP Server with Graceful Shutdown
