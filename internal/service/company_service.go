@@ -228,11 +228,32 @@ func (s *companyService) GetPublicProfile(ctx context.Context, companyID primiti
 		salaryLabel := utils.FormatSalary(job.SalaryMin, job.SalaryMax, job.SalaryPeriod)
 		postedLabel := utils.FormatRelativeTime(postedAt)
 
+		var compLocParts []string
+		if comp.Location.City != "" {
+			compLocParts = append(compLocParts, comp.Location.City)
+		}
+		if comp.Location.State != "" {
+			compLocParts = append(compLocParts, comp.Location.State)
+		}
+		if comp.Location.Country != "" {
+			compLocParts = append(compLocParts, comp.Location.Country)
+		}
+		compLocStr := strings.Join(compLocParts, ", ")
+		if compLocStr == "" {
+			compLocStr = job.Location
+		}
+
+		compFounded := comp.Founded
+		if compFounded != "" && !strings.HasPrefix(strings.ToLower(compFounded), "founded") {
+			compFounded = "Founded in " + compFounded
+		}
+
 		openJobs = append(openJobs, dto.JobResponseDTO{
 			ID:              job.ID.Hex(),
 			Title:           job.Title,
 			Company:         comp.Name,
 			CompanyID:       companyID.Hex(),
+			LogoURL:         comp.LogoURL,
 			Location:        job.Location,
 			PostedAt:        postedAt,
 			PostedLabel:     postedLabel,
@@ -251,6 +272,19 @@ func (s *companyService) GetPublicProfile(ctx context.Context, companyID primiti
 			Status:          job.Status,
 			Skills:          job.Skills,
 			Vacancies:       job.Vacancies,
+			CompanyInfo: &dto.CompanyInfoDTO{
+				Name:        comp.Name,
+				CompanyName: comp.Name,
+				Industry:    comp.Industry,
+				About:       comp.About,
+				Website:     comp.Website,
+				Location:    compLocStr,
+				Employees:   comp.Size,
+				CompanySize: comp.Size,
+				CompanyType: comp.Type,
+				Founded:     compFounded,
+				LogoURL:     comp.LogoURL,
+			},
 		})
 	}
 

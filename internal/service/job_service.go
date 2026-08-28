@@ -363,12 +363,80 @@ func (s *jobService) checkAndSetExpired(ctx context.Context, job *domain.Job) {
 	}
 }
 
-func (s *jobService) mapToDTO(ctx context.Context, job *domain.Job) (*dto.JobResponseDTO, error) {
-	company, err := s.companyRepo.FindByID(ctx, job.CompanyID)
-	companyName := "Unknown Company"
-	if err == nil && company != nil {
-		companyName = company.Name
+func formatCompanyInfo(jobLocation string, comp *domain.Company) (companyName, logoURL string, compInfo *dto.CompanyInfoDTO) {
+	if comp == nil {
+		return "Unknown Company", "", &dto.CompanyInfoDTO{
+			Name:        "Unknown Company",
+			CompanyName: "Unknown Company",
+			Industry:    "Technology & Software",
+			About:       "No company bio provided yet.",
+			Website:     "",
+			Location:    jobLocation,
+			Employees:   "1-50 employees",
+			CompanySize: "1-50 employees",
+			CompanyType: "",
+			Founded:     "",
+			LogoURL:     "",
+		}
 	}
+
+	companyName = comp.Name
+	if companyName == "" {
+		companyName = "Unknown Company"
+	}
+	logoURL = comp.LogoURL
+
+	var locParts []string
+	if comp.Location.City != "" {
+		locParts = append(locParts, comp.Location.City)
+	}
+	if comp.Location.State != "" {
+		locParts = append(locParts, comp.Location.State)
+	}
+	if comp.Location.Country != "" {
+		locParts = append(locParts, comp.Location.Country)
+	}
+	companyLocation := strings.Join(locParts, ", ")
+	if companyLocation == "" {
+		companyLocation = jobLocation
+	}
+
+	industry := comp.Industry
+	if industry == "" {
+		industry = "Technology & Software"
+	}
+	about := comp.About
+	if about == "" {
+		about = "No company bio provided yet."
+	}
+	employees := comp.Size
+	if employees == "" {
+		employees = "1-50 employees"
+	}
+	founded := comp.Founded
+	if founded != "" && !strings.HasPrefix(strings.ToLower(founded), "founded") {
+		founded = "Founded in " + founded
+	}
+
+	compInfo = &dto.CompanyInfoDTO{
+		Name:        companyName,
+		CompanyName: companyName,
+		Industry:    industry,
+		About:       about,
+		Website:     comp.Website,
+		Location:    companyLocation,
+		Employees:   employees,
+		CompanySize: comp.Size,
+		CompanyType: comp.Type,
+		Founded:     founded,
+		LogoURL:     comp.LogoURL,
+	}
+	return companyName, logoURL, compInfo
+}
+
+func (s *jobService) mapToDTO(ctx context.Context, job *domain.Job) (*dto.JobResponseDTO, error) {
+	company, _ := s.companyRepo.FindByID(ctx, job.CompanyID)
+	companyName, logoURL, companyInfo := formatCompanyInfo(job.Location, company)
 
 	postedAt := job.CreatedAt
 	if job.PublishedAt != nil {
@@ -395,6 +463,7 @@ func (s *jobService) mapToDTO(ctx context.Context, job *domain.Job) (*dto.JobRes
 		Title:           job.Title,
 		Company:         companyName,
 		CompanyID:       job.CompanyID.Hex(),
+		LogoURL:         logoURL,
 		Location:        job.Location,
 		PostedAt:        postedAt,
 		PostedLabel:     postedLabel,
@@ -415,6 +484,7 @@ func (s *jobService) mapToDTO(ctx context.Context, job *domain.Job) (*dto.JobRes
 		Status:          job.Status,
 		Skills:          job.Skills,
 		Vacancies:       job.Vacancies,
+		CompanyInfo:     companyInfo,
 	}, nil
 }
 
@@ -425,12 +495,12 @@ func (s *jobService) mapListToDTO(ctx context.Context, jobs []domain.Job) []dto.
 		companyIDs = append(companyIDs, j.CompanyID)
 	}
 
-	companiesMap := make(map[string]string)
+	companiesMap := make(map[string]*domain.Company)
 	for _, cid := range companyIDs {
 		if _, ok := companiesMap[cid.Hex()]; !ok {
 			comp, err := s.companyRepo.FindByID(ctx, cid)
 			if err == nil && comp != nil {
-				companiesMap[cid.Hex()] = comp.Name
+				companiesMap[cid.Hex()] = comp
 			}
 		}
 	}
@@ -459,16 +529,15 @@ func (s *jobService) mapListToDTO(ctx context.Context, jobs []domain.Job) []dto.
 		salaryLabel := utils.FormatSalary(job.SalaryMin, job.SalaryMax, job.SalaryPeriod)
 		postedLabel := utils.FormatRelativeTime(postedAt)
 
-		companyName := companiesMap[job.CompanyID.Hex()]
-		if companyName == "" {
-			companyName = "Unknown Company"
-		}
+		comp := companiesMap[job.CompanyID.Hex()]
+		companyName, logoURL, companyInfo := formatCompanyInfo(job.Location, comp)
 
 		dtos = append(dtos, dto.JobResponseDTO{
 			ID:              job.ID.Hex(),
 			Title:           job.Title,
 			Company:         companyName,
 			CompanyID:       job.CompanyID.Hex(),
+			LogoURL:         logoURL,
 			Location:        job.Location,
 			PostedAt:        postedAt,
 			PostedLabel:     postedLabel,
@@ -487,6 +556,7 @@ func (s *jobService) mapListToDTO(ctx context.Context, jobs []domain.Job) []dto.
 			Status:          job.Status,
 			Skills:          job.Skills,
 			Vacancies:       job.Vacancies,
+			CompanyInfo:     companyInfo,
 		})
 	}
 	return dtos

@@ -40,31 +40,47 @@ type UpdateJobDTO struct {
 	Status          string    `json:"status"`
 }
 
+type CompanyInfoDTO struct {
+	Name        string `json:"name,omitempty"`
+	CompanyName string `json:"companyName,omitempty"`
+	Industry    string `json:"industry"`
+	About       string `json:"about"`
+	Website     string `json:"website"`
+	Location    string `json:"location"`
+	Employees   string `json:"employees"`
+	CompanySize string `json:"companySize,omitempty"`
+	CompanyType string `json:"companyType,omitempty"`
+	Founded     string `json:"founded"`
+	LogoURL     string `json:"logoUrl"`
+}
+
 type JobResponseDTO struct {
-	ID              string    `json:"id"`
-	Title           string    `json:"title"`
-	Company         string    `json:"company"`
-	CompanyID       string    `json:"companyId"`
-	Location        string    `json:"location"`
-	PostedAt        time.Time `json:"postedAt"`
-	PostedLabel     string    `json:"postedLabel"`
-	Category        string    `json:"category"`
-	Description     string    `json:"description"`
-	Requirements    string    `json:"requirements,omitempty"`
-	Benefits        string    `json:"benefits,omitempty"`
-	Tags            []string  `json:"tags"`
-	Salary          string    `json:"salary"`
-	SalaryMin       *int      `json:"salaryMin"`
-	SalaryMax       *int      `json:"salaryMax"`
-	SalaryPeriod    string    `json:"salaryPeriod"`
-	Applicants      int       `json:"applicants"`
-	JobType         string    `json:"jobType"`
-	WorkMode        string    `json:"workMode"`
-	ExperienceLevel string    `json:"experienceLevel"`
-	Deadline        time.Time `json:"deadline"`
-	Status          string    `json:"status"`
-	Skills          []string  `json:"skills"`
-	Vacancies       int       `json:"vacancies"`
+	ID              string          `json:"id"`
+	Title           string          `json:"title"`
+	Company         string          `json:"company"`
+	CompanyID       string          `json:"companyId"`
+	LogoURL         string          `json:"logoUrl,omitempty"`
+	Location        string          `json:"location"`
+	PostedAt        time.Time       `json:"postedAt"`
+	PostedLabel     string          `json:"postedLabel"`
+	Category        string          `json:"category"`
+	Description     string          `json:"description"`
+	Requirements    string          `json:"requirements,omitempty"`
+	Benefits        string          `json:"benefits,omitempty"`
+	Tags            []string        `json:"tags"`
+	Salary          string          `json:"salary"`
+	SalaryMin       *int            `json:"salaryMin"`
+	SalaryMax       *int            `json:"salaryMax"`
+	SalaryPeriod    string          `json:"salaryPeriod"`
+	Applicants      int             `json:"applicants"`
+	JobType         string          `json:"jobType"`
+	WorkMode        string          `json:"workMode"`
+	ExperienceLevel string          `json:"experienceLevel"`
+	Deadline        time.Time       `json:"deadline"`
+	Status          string          `json:"status"`
+	Skills          []string        `json:"skills"`
+	Vacancies       int             `json:"vacancies"`
+	CompanyInfo     *CompanyInfoDTO `json:"companyInfo,omitempty"`
 }
 
 type BulkJobActionDTO struct {
