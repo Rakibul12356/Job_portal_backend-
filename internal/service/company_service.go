@@ -59,14 +59,26 @@ func (s *companyService) GetCompanySettings(ctx context.Context, ownerID primiti
 		return nil, err
 	}
 
+	user, _ := s.userRepo.FindByID(ctx, ownerID)
+	accountEmail := ""
+	if user != nil {
+		accountEmail = user.Email
+	}
+
 	return &dto.CompanySettingsResponseDTO{
+		ID:           comp.ID.Hex(),
 		CompanyName:  comp.Name,
+		Name:         comp.Name,
+		AccountEmail: accountEmail,
 		Industry:     comp.Industry,
 		CompanySize:  comp.Size,
+		Size:         comp.Size,
 		CompanyType:  comp.Type,
+		Type:         comp.Type,
 		Website:      comp.Website,
 		Founded:      comp.Founded,
 		About:        comp.About,
+		LogoURL:      comp.LogoURL,
 		City:         comp.Location.City,
 		State:        comp.Location.State,
 		Country:      comp.Location.Country,
@@ -87,40 +99,95 @@ func (s *companyService) UpdateCompanySettings(ctx context.Context, ownerID prim
 		return nil, err
 	}
 
-	user, err := s.userRepo.FindByID(ctx, ownerID)
-	if err == nil && input.CompanyName != "" && input.CompanyName != user.Name {
-		user.Name = input.CompanyName
-		if err := s.userRepo.Update(ctx, user); err != nil {
-			return nil, appErrors.NewInternalError("Failed to update user identity: " + err.Error())
+	user, _ := s.userRepo.FindByID(ctx, ownerID)
+	accountEmail := ""
+	if user != nil {
+		accountEmail = user.Email
+	}
+
+	// Resolve aliases
+	companyName := input.CompanyName
+	if companyName == "" {
+		companyName = input.Name
+	}
+	companySize := input.CompanySize
+	if companySize == "" {
+		companySize = input.Size
+	}
+	companyType := input.CompanyType
+	if companyType == "" {
+		companyType = input.Type
+	}
+	about := input.About
+	if about == "" {
+		about = input.Description
+	}
+
+	// Update Company Name if provided
+	if companyName != "" {
+		comp.Name = companyName
+		if user != nil && companyName != user.Name {
+			user.Name = companyName
+			_ = s.userRepo.Update(ctx, user)
 		}
 	}
 
-	comp.Name = input.CompanyName
-	comp.Industry = input.Industry
-	comp.Size = input.CompanySize
-	comp.Type = input.CompanyType
-	comp.Website = input.Website
-	comp.Founded = input.Founded
-	comp.About = input.About
-
-	comp.Location = domain.CompanyLocation{
-		City:    input.City,
-		State:   input.State,
-		Country: input.Country,
+	if input.Industry != "" {
+		comp.Industry = input.Industry
+	}
+	if companySize != "" {
+		comp.Size = companySize
+	}
+	if companyType != "" {
+		comp.Type = companyType
+	}
+	if input.Website != "" {
+		comp.Website = input.Website
+	}
+	if input.Founded != "" {
+		comp.Founded = input.Founded
+	}
+	if about != "" {
+		comp.About = about
 	}
 
-	comp.Contact = domain.CompanyContact{
-		Phone:        input.Phone,
-		HREmail:      input.HREmail,
-		SupportEmail: input.SupportEmail,
+	// Location fields
+	if input.City != "" {
+		comp.Location.City = input.City
+	}
+	if input.State != "" {
+		comp.Location.State = input.State
+	}
+	if input.Country != "" {
+		comp.Location.Country = input.Country
 	}
 
-	comp.Social = domain.CompanySocial{
-		Linkedin:  input.Linkedin,
-		Twitter:   input.Twitter,
-		Facebook:  input.Facebook,
-		Instagram: input.Instagram,
-		Github:    input.Github,
+	// Contact fields (HR and Support emails can be updated, login account email is protected)
+	if input.Phone != "" {
+		comp.Contact.Phone = input.Phone
+	}
+	if input.HREmail != "" {
+		comp.Contact.HREmail = input.HREmail
+	}
+	if input.SupportEmail != "" {
+		comp.Contact.SupportEmail = input.SupportEmail
+	}
+
+	// Social fields
+	if input.Linkedin != "" {
+		comp.Social.Linkedin = input.Linkedin
+	}
+	if input.Twitter != "" {
+		comp.Social.Twitter = input.Twitter
+	}
+	if input.Facebook != "" {
+		comp.Social.Facebook = input.Facebook
+	}
+	if input.Instagram != "" {
+		comp.Social.Instagram = input.Instagram
+	}
+	if input.Github != "" {
+		comp.Social.Github = input.Github
 	}
 
 	err = s.companyRepo.Update(ctx, comp)
@@ -129,13 +196,19 @@ func (s *companyService) UpdateCompanySettings(ctx context.Context, ownerID prim
 	}
 
 	return &dto.CompanySettingsResponseDTO{
+		ID:           comp.ID.Hex(),
 		CompanyName:  comp.Name,
+		Name:         comp.Name,
+		AccountEmail: accountEmail,
 		Industry:     comp.Industry,
 		CompanySize:  comp.Size,
+		Size:         comp.Size,
 		CompanyType:  comp.Type,
+		Type:         comp.Type,
 		Website:      comp.Website,
 		Founded:      comp.Founded,
 		About:        comp.About,
+		LogoURL:      comp.LogoURL,
 		City:         comp.Location.City,
 		State:        comp.Location.State,
 		Country:      comp.Location.Country,

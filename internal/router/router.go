@@ -134,6 +134,7 @@ func SetupRouter(
 		cSettings := api.Group("/company")
 		{
 			cSettings.GET("/profile", middleware.AuthRequired(), middleware.RequireRole("company"), companyHandler.GetOwnCompanyProfile)
+			cSettings.PUT("/profile", middleware.AuthRequired(), middleware.RequireRole("company"), companyHandler.UpdateCompanySettings)
 			cSettings.GET("/settings", middleware.AuthRequired(), middleware.RequireRole("company"), companyHandler.GetCompanySettings)
 			cSettings.PUT("/settings", middleware.AuthRequired(), middleware.RequireRole("company"), companyHandler.UpdateCompanySettings)
 			cSettings.POST("/logo", middleware.AuthRequired(), middleware.RequireRole("company"), companyHandler.UploadLogo)
