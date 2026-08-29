@@ -2,9 +2,12 @@ package utils
 
 import (
 	"crypto/rand"
+	"crypto/tls"
 	"fmt"
 	"math/big"
+	"net"
 	"net/smtp"
+	"time"
 
 	"github.com/rakib/job-portal-api/internal/config"
 )
@@ -20,28 +23,71 @@ func GenerateOTP() (string, error) {
 	return fmt.Sprintf("%d", otp), nil
 }
 
-// SendEmail sends an HTML formatted email using the SMTP configurations loaded in config.go.
+// SendEmail sends an HTML formatted email using the SMTP configurations with a 10-second timeout.
 func SendEmail(to string, subject string, htmlBody string) error {
 	cfg := config.AppConfig
 
-	// Create authentication for SMTP
-	auth := smtp.PlainAuth("", cfg.SMTPUser, cfg.SMTPPass, cfg.SMTPHost)
-
-	// Set headers for HTML email
-	mime := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
-	msg := []byte("From: " + cfg.SMTPSender + "\r\n" +
-		"To: " + to + "\r\n" +
-		"Subject: " + subject + "\r\n" +
-		mime +
-		htmlBody)
-
+	// 1. Dial connection with a timeout (to prevent hanging if SMTP server is blocked or unreachable)
 	addr := fmt.Sprintf("%s:%d", cfg.SMTPHost, cfg.SMTPPort)
-
-	// SendMail handles establishing the connection, switching to TLS if STARTTLS is supported, and sending the mail.
-	err := smtp.SendMail(addr, auth, cfg.SMTPSender, []string{to}, msg)
+	dialer := net.Dialer{
+		Timeout: 10 * time.Second,
+	}
+	conn, err := dialer.Dial("tcp", addr)
 	if err != nil {
-		return fmt.Errorf("failed to send email: %w", err)
+		return fmt.Errorf("failed to connect to SMTP server (timeout/connection error): %w", err)
+	}
+	defer conn.Close()
+
+	// 2. Set read/write deadlines on the connection
+	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
+
+	// 3. Create SMTP client
+	client, err := smtp.NewClient(conn, cfg.SMTPHost)
+	if err != nil {
+		return fmt.Errorf("failed to create SMTP client: %w", err)
+	}
+	defer client.Quit()
+
+	// 4. Send STARTTLS if supported (necessary for port 587)
+	if cfg.SMTPPort == 587 {
+		tlsConfig := &tls.Config{
+			ServerName: cfg.SMTPHost,
+		}
+		if err := client.StartTLS(tlsConfig); err != nil {
+			return fmt.Errorf("failed to start TLS: %w", err)
+		}
+	}
+
+	// 5. Authenticate if credentials are provided
+	if cfg.SMTPUser != "" {
+		auth := smtp.PlainAuth("", cfg.SMTPUser, cfg.SMTPPass, cfg.SMTPHost)
+		if err := client.Auth(auth); err != nil {
+			return fmt.Errorf("failed to authenticate SMTP: %w", err)
+		}
+	}
+
+	// 6. Set sender and recipient
+	if err := client.Mail(cfg.SMTPSender); err != nil {
+		return fmt.Errorf("failed to set sender: %w", err)
+	}
+	if err := client.Rcpt(to); err != nil {
+		return fmt.Errorf("failed to add recipient: %w", err)
+	}
+
+	// 7. Write email headers and HTML body
+	w, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("failed to get data writer: %w", err)
+	}
+	defer w.Close()
+
+	mime := "MIME-version: 1.0;\r\nContent-Type: text/html; charset=\"UTF-8\";\r\n\r\n"
+	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\n%s%s", cfg.SMTPSender, to, subject, mime, htmlBody)
+
+	if _, err := w.Write([]byte(msg)); err != nil {
+		return fmt.Errorf("failed to write body: %w", err)
 	}
 
 	return nil
 }
+
