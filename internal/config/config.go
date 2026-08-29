@@ -9,24 +9,28 @@ import (
 )
 
 type Config struct {
-	AppEnv           string
-	AppPort          string
-	AppBaseURL       string
-	MongoURI         string
-	MongoDB          string
-	JWTAccessSecret  string
-	JWTRefreshSecret string
-	JWTAccessTTL     time.Duration
-	JWTRefreshTTL    time.Duration
-	CORSOrigins      []string
-	UploadDriver     string
-	UploadDir        string
-	RateLimitRPM     int
-	SMTPHost         string
-	SMTPPort         int
-	SMTPUser         string
-	SMTPPass         string
-	SMTPSender       string
+	AppEnv            string
+	AppPort           string
+	AppBaseURL        string
+	MongoURI          string
+	MongoDB           string
+	JWTAccessSecret   string
+	JWTRefreshSecret  string
+	JWTAccessTTL      time.Duration
+	JWTRefreshTTL     time.Duration
+	CORSOrigins       []string
+	UploadDriver      string
+	UploadDir         string
+	RateLimitRPM      int
+	SMTPHost          string
+	SMTPPort          int
+	SMTPUser          string
+	SMTPPass          string
+	SMTPSender        string
+	GmailClientID     string
+	GmailClientSecret string
+	GmailRefreshToken string
+	GmailSenderEmail  string
 }
 
 var AppConfig *Config
@@ -61,24 +65,28 @@ func LoadConfig() *Config {
 	}
 
 	AppConfig = &Config{
-		AppEnv:           getEnv("APP_ENV", "development"),
-		AppPort:          getEnv("PORT", getEnv("APP_PORT", "8080")),
-		AppBaseURL:       getEnv("APP_BASE_URL", "http://localhost:8080"),
-		MongoURI:         getEnv("MONGO_URI", "mongodb+srv://Job_portal_db:rakib74@cluster0.j9djoaf.mongodb.net/?appName=Cluster0"),
-		MongoDB:          getEnv("MONGO_DB", "job_portal"),
-		JWTAccessSecret:  getEnv("JWT_ACCESS_SECRET", "change-me-access-super-secret"),
-		JWTRefreshSecret: getEnv("JWT_REFRESH_SECRET", "change-me-refresh-super-secret"),
-		JWTAccessTTL:     accessTTL,
-		JWTRefreshTTL:    refreshTTL,
-		CORSOrigins:      corsOrigins,
-		UploadDriver:     getEnv("UPLOAD_DRIVER", "local"),
-		UploadDir:        getEnv("UPLOAD_DIR", "./uploads"),
-		RateLimitRPM:     rpm,
-		SMTPHost:         getEnv("SMTP_HOST", "smtp.resend.com"),
-		SMTPPort:         smtpPort,
-		SMTPUser:         getEnv("SMTP_USER", "resend"),
-		SMTPPass:         getEnv("SMTP_PASS", ""),
-		SMTPSender:       getEnv("SMTP_SENDER", "onboarding@resend.dev"),
+		AppEnv:            getEnv("APP_ENV", "development"),
+		AppPort:           getEnv("PORT", getEnv("APP_PORT", "8080")),
+		AppBaseURL:        getEnv("APP_BASE_URL", "http://localhost:8080"),
+		MongoURI:          getEnv("MONGO_URI", "mongodb+srv://Job_portal_db:rakib74@cluster0.j9djoaf.mongodb.net/?appName=Cluster0"),
+		MongoDB:           getEnv("MONGO_DB", "job_portal"),
+		JWTAccessSecret:   getEnv("JWT_ACCESS_SECRET", "change-me-access-super-secret"),
+		JWTRefreshSecret:  getEnv("JWT_REFRESH_SECRET", "change-me-refresh-super-secret"),
+		JWTAccessTTL:      accessTTL,
+		JWTRefreshTTL:     refreshTTL,
+		CORSOrigins:       corsOrigins,
+		UploadDriver:      getEnv("UPLOAD_DRIVER", "local"),
+		UploadDir:         getEnv("UPLOAD_DIR", "./uploads"),
+		RateLimitRPM:      rpm,
+		SMTPHost:          getEnv("SMTP_HOST", "smtp.resend.com"),
+		SMTPPort:          smtpPort,
+		SMTPUser:          getEnv("SMTP_USER", "resend"),
+		SMTPPass:          getEnv("SMTP_PASS", ""),
+		SMTPSender:        getEnv("SMTP_SENDER", "onboarding@resend.dev"),
+		GmailClientID:     getEnv("GMAIL_CLIENT_ID", ""),
+		GmailClientSecret: getEnv("GMAIL_CLIENT_SECRET", ""),
+		GmailRefreshToken: getEnv("GMAIL_REFRESH_TOKEN", ""),
+		GmailSenderEmail:  getEnv("GMAIL_SENDER_EMAIL", ""),
 	}
 
 	return AppConfig
