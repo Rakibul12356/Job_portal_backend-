@@ -282,7 +282,7 @@ func (s *applicationService) UpdateApplicantStatus(ctx context.Context, companyI
 					<p>Great news! <strong>%s</strong> has shortlisted your application for the role of <strong>%s</strong>.</p>
 					<p>They will contact you soon for the next steps. Please log in to your dashboard to view details and message the employer.</p>
 					<div style="text-align: center; margin: 20px 0;">
-						<a href="http://localhost:5174/dashboard" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; font-weight: bold;">Go to Dashboard</a>
+						<a href="https://online-job-portal-forntend.vercel.app/dashboard" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; font-weight: bold;">Go to Dashboard</a>
 					</div>
 					<hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
 					<p style="font-size: 12px; color: #666; text-align: center;">Online Job Portal &copy; 2026. All rights reserved.</p>
