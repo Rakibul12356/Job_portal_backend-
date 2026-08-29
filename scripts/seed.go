@@ -39,7 +39,7 @@ func main() {
 	seekerUserID := primitive.NewObjectID()
 	seekerUser := domain.User{
 		ID:           seekerUserID,
-		Email:        "you@example.com",
+		Email:        "shanjidahmed66@gmail.com",
 		PasswordHash: hashStr,
 		Role:         domain.RoleUser,
 		Name:         "John Doe",
@@ -54,7 +54,7 @@ func main() {
 	companyID := primitive.NewObjectID()
 	employerUser := domain.User{
 		ID:           employerUserID,
-		Email:        "company@example.com",
+		Email:        "mdrakibulhasan12346@gmail.com",
 		PasswordHash: hashStr,
 		Role:         domain.RoleCompany,
 		Name:         "TechCorp Solutions",
