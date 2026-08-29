@@ -2,14 +2,11 @@ package utils
 
 import (
 	"crypto/rand"
-	"crypto/tls"
 	"fmt"
 	"math/big"
-	"net"
-	"net/smtp"
-	"time"
 
 	"github.com/rakib/job-portal-api/internal/config"
+	"github.com/resend/resend-go/v2"
 )
 
 // GenerateOTP generates a cryptographically secure 6-digit numeric OTP.
@@ -23,85 +20,32 @@ func GenerateOTP() (string, error) {
 	return fmt.Sprintf("%d", otp), nil
 }
 
-// SendEmail sends an HTML formatted email using the SMTP configurations with a 10-second timeout.
+// SendEmail sends an HTML formatted email using the Resend HTTP API.
+// This bypasses hosting provider port blocks (like Render's SMTP block) by sending requests over HTTPS (port 443).
 func SendEmail(to string, subject string, htmlBody string) error {
 	cfg := config.AppConfig
 
-	addr := fmt.Sprintf("%s:%d", cfg.SMTPHost, cfg.SMTPPort)
-	dialer := net.Dialer{
-		Timeout: 10 * time.Second,
+	// We reuse SMTPPass to hold the Resend API key to avoid breaking existing configurations.
+	apiKey := cfg.SMTPPass
+	if apiKey == "" {
+		return fmt.Errorf("resend API key is empty (check SMTP_PASS in configuration)")
 	}
 
-	var conn net.Conn
-	var err error
+	client := resend.NewClient(apiKey)
 
-	// 1. Dial connection with a timeout
-	if cfg.SMTPPort == 465 {
-		// Use TLS Dial for Port 465 (Implicit SSL/TLS)
-		tlsConfig := &tls.Config{
-			ServerName: cfg.SMTPHost,
-		}
-		conn, err = tls.DialWithDialer(&dialer, "tcp", addr, tlsConfig)
-	} else {
-		// Use standard TCP Dial for Port 587 / 25
-		conn, err = dialer.Dial("tcp", addr)
+	params := &resend.SendEmailRequest{
+		From:    cfg.SMTPSender, // e.g., "onboarding@resend.dev"
+		To:      []string{to},
+		Subject: subject,
+		Html:    htmlBody,
 	}
 
+	_, err := client.Emails.Send(params)
 	if err != nil {
-		return fmt.Errorf("failed to connect to SMTP server (timeout/connection error): %w", err)
-	}
-	defer conn.Close()
-
-	// 2. Set read/write deadlines on the connection
-	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
-
-	// 3. Create SMTP client
-	client, err := smtp.NewClient(conn, cfg.SMTPHost)
-	if err != nil {
-		return fmt.Errorf("failed to create SMTP client: %w", err)
-	}
-	defer client.Quit()
-
-	// 4. Send STARTTLS if supported (necessary for port 587, skip if already on TLS port 465)
-	if cfg.SMTPPort == 587 {
-		tlsConfig := &tls.Config{
-			ServerName: cfg.SMTPHost,
-		}
-		if err := client.StartTLS(tlsConfig); err != nil {
-			return fmt.Errorf("failed to start TLS: %w", err)
-		}
-	}
-
-	// 5. Authenticate if credentials are provided
-	if cfg.SMTPUser != "" {
-		auth := smtp.PlainAuth("", cfg.SMTPUser, cfg.SMTPPass, cfg.SMTPHost)
-		if err := client.Auth(auth); err != nil {
-			return fmt.Errorf("failed to authenticate SMTP: %w", err)
-		}
-	}
-
-	// 6. Set sender and recipient
-	if err := client.Mail(cfg.SMTPSender); err != nil {
-		return fmt.Errorf("failed to set sender: %w", err)
-	}
-	if err := client.Rcpt(to); err != nil {
-		return fmt.Errorf("failed to add recipient: %w", err)
-	}
-
-	// 7. Write email headers and HTML body
-	w, err := client.Data()
-	if err != nil {
-		return fmt.Errorf("failed to get data writer: %w", err)
-	}
-	defer w.Close()
-
-	mime := "MIME-version: 1.0;\r\nContent-Type: text/html; charset=\"UTF-8\";\r\n\r\n"
-	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\n%s%s", cfg.SMTPSender, to, subject, mime, htmlBody)
-
-	if _, err := w.Write([]byte(msg)); err != nil {
-		return fmt.Errorf("failed to write body: %w", err)
+		return fmt.Errorf("resend API call failed: %w", err)
 	}
 
 	return nil
 }
+
 
