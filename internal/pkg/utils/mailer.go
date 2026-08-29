@@ -27,12 +27,26 @@ func GenerateOTP() (string, error) {
 func SendEmail(to string, subject string, htmlBody string) error {
 	cfg := config.AppConfig
 
-	// 1. Dial connection with a timeout (to prevent hanging if SMTP server is blocked or unreachable)
 	addr := fmt.Sprintf("%s:%d", cfg.SMTPHost, cfg.SMTPPort)
 	dialer := net.Dialer{
 		Timeout: 10 * time.Second,
 	}
-	conn, err := dialer.Dial("tcp", addr)
+
+	var conn net.Conn
+	var err error
+
+	// 1. Dial connection with a timeout
+	if cfg.SMTPPort == 465 {
+		// Use TLS Dial for Port 465 (Implicit SSL/TLS)
+		tlsConfig := &tls.Config{
+			ServerName: cfg.SMTPHost,
+		}
+		conn, err = tls.DialWithDialer(&dialer, "tcp", addr, tlsConfig)
+	} else {
+		// Use standard TCP Dial for Port 587 / 25
+		conn, err = dialer.Dial("tcp", addr)
+	}
+
 	if err != nil {
 		return fmt.Errorf("failed to connect to SMTP server (timeout/connection error): %w", err)
 	}
@@ -48,7 +62,7 @@ func SendEmail(to string, subject string, htmlBody string) error {
 	}
 	defer client.Quit()
 
-	// 4. Send STARTTLS if supported (necessary for port 587)
+	// 4. Send STARTTLS if supported (necessary for port 587, skip if already on TLS port 465)
 	if cfg.SMTPPort == 587 {
 		tlsConfig := &tls.Config{
 			ServerName: cfg.SMTPHost,
