@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"strings"
+	"time"
 
 	"github.com/rakib/job-portal-api/internal/domain"
 	"github.com/rakib/job-portal-api/internal/dto"
@@ -20,6 +22,8 @@ type AuthService interface {
 	Login(ctx context.Context, input dto.LoginDTO) (*dto.LoginResponseDTO, error)
 	Refresh(ctx context.Context, refreshToken string) (string, string, error)
 	Me(ctx context.Context, userID primitive.ObjectID) (*dto.UserResponseDTO, error)
+	ForgotPassword(ctx context.Context, input dto.ForgotPasswordDTO) error
+	ResetPassword(ctx context.Context, input dto.ResetPasswordDTO) error
 }
 
 type authService struct {
@@ -289,3 +293,78 @@ func (s *authService) Me(ctx context.Context, userID primitive.ObjectID) (*dto.U
 		CompanyID: companyIDStr,
 	}, nil
 }
+
+func (s *authService) ForgotPassword(ctx context.Context, input dto.ForgotPasswordDTO) error {
+	user, err := s.userRepo.FindByEmail(ctx, input.Email)
+	if err != nil {
+		return appErrors.NewNotFoundError("User not found with this email")
+	}
+
+	otp, err := utils.GenerateOTP()
+	if err != nil {
+		return appErrors.NewInternalError("Failed to generate OTP")
+	}
+
+	user.ResetOTPCode = otp
+	user.ResetOTPExpiresAt = time.Now().Add(5 * time.Minute)
+
+	err = s.userRepo.Update(ctx, user)
+	if err != nil {
+		return appErrors.NewInternalError("Failed to save OTP to database")
+	}
+
+	// Send email with OTP
+	subject := "Password Reset OTP"
+	htmlBody := fmt.Sprintf(`
+		<div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 5px; max-width: 600px;">
+			<h2 style="color: #333;">Password Reset Request</h2>
+			<p>We received a request to reset your password. Use the following One-Time Password (OTP) to complete the reset. This OTP is valid for 5 minutes.</p>
+			<div style="background-color: #f7f7f7; padding: 15px; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 5px; color: #4CAF50; border-radius: 4px; margin: 20px 0;">
+				%s
+			</div>
+			<p>If you did not request this password reset, please ignore this email.</p>
+		</div>
+	`, otp)
+
+	err = utils.SendEmail(user.Email, subject, htmlBody)
+	if err != nil {
+		return appErrors.NewInternalError("Failed to send OTP email: " + err.Error())
+	}
+
+	return nil
+}
+
+func (s *authService) ResetPassword(ctx context.Context, input dto.ResetPasswordDTO) error {
+	user, err := s.userRepo.FindByEmail(ctx, input.Email)
+	if err != nil {
+		return appErrors.NewNotFoundError("User not found")
+	}
+
+	// Validate OTP
+	if user.ResetOTPCode == "" || user.ResetOTPCode != input.OTP {
+		return appErrors.NewValidationError("Invalid OTP code")
+	}
+
+	if time.Now().After(user.ResetOTPExpiresAt) {
+		return appErrors.NewValidationError("OTP has expired")
+	}
+
+	// Hash new password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), 12)
+	if err != nil {
+		return appErrors.NewInternalError("Failed to process password")
+	}
+
+	// Update user info and clear OTP
+	user.PasswordHash = string(hashedPassword)
+	user.ResetOTPCode = ""
+	user.ResetOTPExpiresAt = time.Time{}
+
+	err = s.userRepo.Update(ctx, user)
+	if err != nil {
+		return appErrors.NewInternalError("Failed to update password in database")
+	}
+
+	return nil
+}
+

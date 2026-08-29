@@ -49,3 +49,15 @@ type LoginResponseDTO struct {
 type RefreshDTO struct {
 	RefreshToken string `json:"refreshToken" binding:"required"`
 }
+
+type ForgotPasswordDTO struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+type ResetPasswordDTO struct {
+	Email           string `json:"email" binding:"required,email"`
+	OTP             string `json:"otp" binding:"required,len=6"`
+	Password        string `json:"password" binding:"required,min=8"`
+	ConfirmPassword string `json:"confirmPassword" binding:"required,eqfield=Password"`
+}
+

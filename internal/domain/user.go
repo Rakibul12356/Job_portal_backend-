@@ -14,7 +14,9 @@ type User struct {
 	Name         string              `bson:"name" json:"name"`
 	FirstName    string              `bson:"firstName" json:"firstName"`
 	CompanyID    *primitive.ObjectID `bson:"companyId,omitempty" json:"companyId,omitempty"`
-	IsActive     bool                `bson:"isActive" json:"isActive"`
-	CreatedAt    time.Time           `bson:"createdAt" json:"createdAt"`
-	UpdatedAt    time.Time           `bson:"updatedAt" json:"updatedAt"`
+	IsActive          bool                `bson:"isActive" json:"isActive"`
+	ResetOTPCode      string              `bson:"resetOtpCode,omitempty" json:"-"`
+	ResetOTPExpiresAt time.Time           `bson:"resetOtpExpiresAt,omitempty" json:"-"`
+	CreatedAt         time.Time           `bson:"createdAt" json:"createdAt"`
+	UpdatedAt         time.Time           `bson:"updatedAt" json:"updatedAt"`
 }

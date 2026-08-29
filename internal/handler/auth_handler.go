@@ -149,3 +149,36 @@ func (h *AuthHandler) handleValidationError(c *gin.Context, err error) {
 
 	response.Error(c, appErrors.NewValidationError("Validation failed", details...))
 }
+
+func (h *AuthHandler) ForgotPassword(c *gin.Context) {
+	var input dto.ForgotPasswordDTO
+	if err := c.ShouldBindJSON(&input); err != nil {
+		h.handleValidationError(c, err)
+		return
+	}
+
+	err := h.authService.ForgotPassword(c.Request.Context(), input)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, "OTP sent to your email successfully", nil)
+}
+
+func (h *AuthHandler) ResetPassword(c *gin.Context) {
+	var input dto.ResetPasswordDTO
+	if err := c.ShouldBindJSON(&input); err != nil {
+		h.handleValidationError(c, err)
+		return
+	}
+
+	err := h.authService.ResetPassword(c.Request.Context(), input)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, "Password reset successfully", nil)
+}
+

@@ -22,6 +22,11 @@ type Config struct {
 	UploadDriver     string
 	UploadDir        string
 	RateLimitRPM     int
+	SMTPHost         string
+	SMTPPort         int
+	SMTPUser         string
+	SMTPPass         string
+	SMTPSender       string
 }
 
 var AppConfig *Config
@@ -50,6 +55,11 @@ func LoadConfig() *Config {
 		rpm = 60
 	}
 
+	smtpPort, err := strconv.Atoi(getEnv("SMTP_PORT", "587"))
+	if err != nil {
+		smtpPort = 587
+	}
+
 	AppConfig = &Config{
 		AppEnv:           getEnv("APP_ENV", "development"),
 		AppPort:          getEnv("PORT", getEnv("APP_PORT", "8080")),
@@ -64,6 +74,11 @@ func LoadConfig() *Config {
 		UploadDriver:     getEnv("UPLOAD_DRIVER", "local"),
 		UploadDir:        getEnv("UPLOAD_DIR", "./uploads"),
 		RateLimitRPM:     rpm,
+		SMTPHost:         getEnv("SMTP_HOST", "smtp.resend.com"),
+		SMTPPort:         smtpPort,
+		SMTPUser:         getEnv("SMTP_USER", "resend"),
+		SMTPPass:         getEnv("SMTP_PASS", ""),
+		SMTPSender:       getEnv("SMTP_SENDER", "onboarding@resend.dev"),
 	}
 
 	return AppConfig

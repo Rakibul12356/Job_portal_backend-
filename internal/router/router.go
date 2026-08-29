@@ -43,6 +43,8 @@ func SetupRouter(
 			auth.POST("/refresh", authHandler.Refresh)
 			auth.POST("/logout", middleware.AuthRequired(), authHandler.Logout)
 			auth.GET("/me", middleware.AuthRequired(), authHandler.Me)
+			auth.POST("/forgot-password", middleware.RateLimit(), authHandler.ForgotPassword)
+			auth.POST("/reset-password", middleware.RateLimit(), authHandler.ResetPassword)
 		}
 
 		// 2. Public Jobs routes (Public)
