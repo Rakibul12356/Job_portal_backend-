@@ -18,4 +18,7 @@ type Application struct {
 	AppliedAt      time.Time          `bson:"appliedAt" json:"appliedAt"`
 	UpdatedAt      time.Time          `bson:"updatedAt" json:"updatedAt"`
 	ReviewedAt     *time.Time         `bson:"reviewedAt,omitempty" json:"reviewedAt,omitempty"`
+	InterviewDate  string             `bson:"interviewDate,omitempty" json:"interviewDate,omitempty"`
+	InterviewTime  string             `bson:"interviewTime,omitempty" json:"interviewTime,omitempty"`
+	InterviewNotes string             `bson:"interviewNotes,omitempty" json:"interviewNotes,omitempty"`
 }

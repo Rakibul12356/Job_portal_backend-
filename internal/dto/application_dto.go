@@ -3,7 +3,10 @@ package dto
 import "time"
 
 type UpdateApplicationStatusDTO struct {
-	Status string `json:"status" binding:"required,oneof=shortlisted rejected interviewed"`
+	Status        string `json:"status" binding:"required,oneof=shortlisted rejected interviewed"`
+	InterviewDate string `json:"interviewDate"`
+	InterviewTime string `json:"interviewTime"`
+	Notes         string `json:"notes"`
 }
 
 type SeekerApplicationResponseDTO struct {
@@ -20,6 +23,9 @@ type SeekerApplicationResponseDTO struct {
 	CoverMessage   string    `json:"coverMessage"`
 	Location       string    `json:"location"`
 	JobType        string    `json:"jobType"`
+	InterviewDate  string    `json:"interviewDate,omitempty"`
+	InterviewTime  string    `json:"interviewTime,omitempty"`
+	InterviewNotes string    `json:"interviewNotes,omitempty"`
 }
 
 type CompanyApplicantResponseDTO struct {
@@ -38,4 +44,7 @@ type CompanyApplicantResponseDTO struct {
 	ResumeURL      string    `json:"resumeUrl"`
 	ResumeFilename string    `json:"resumeFilename"`
 	CoverMessage   string    `json:"coverMessage"`
+	InterviewDate  string    `json:"interviewDate,omitempty"`
+	InterviewTime  string    `json:"interviewTime,omitempty"`
+	InterviewNotes string    `json:"interviewNotes,omitempty"`
 }

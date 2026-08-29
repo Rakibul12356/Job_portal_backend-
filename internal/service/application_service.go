@@ -22,7 +22,7 @@ type ApplicationService interface {
 	WithdrawApplication(ctx context.Context, userID primitive.ObjectID, appID primitive.ObjectID) error
 	ListCompanyApplicants(ctx context.Context, companyID primitive.ObjectID, query bson.M, experienceFilter string, page, limit int) ([]dto.CompanyApplicantResponseDTO, int64, error)
 	GetCompanyApplicantByID(ctx context.Context, companyID primitive.ObjectID, appID primitive.ObjectID) (*dto.CompanyApplicantResponseDTO, error)
-	UpdateApplicantStatus(ctx context.Context, companyID primitive.ObjectID, appID primitive.ObjectID, status string) error
+	UpdateApplicantStatus(ctx context.Context, companyID primitive.ObjectID, appID primitive.ObjectID, input dto.UpdateApplicationStatusDTO) error
 }
 
 type applicationService struct {
@@ -213,7 +213,7 @@ func (s *applicationService) GetCompanyApplicantByID(ctx context.Context, compan
 	return s.mapToCompanyDTO(ctx, app)
 }
 
-func (s *applicationService) UpdateApplicantStatus(ctx context.Context, companyID primitive.ObjectID, appID primitive.ObjectID, status string) error {
+func (s *applicationService) UpdateApplicantStatus(ctx context.Context, companyID primitive.ObjectID, appID primitive.ObjectID, input dto.UpdateApplicationStatusDTO) error {
 	app, err := s.appRepo.FindByID(ctx, appID)
 	if err != nil {
 		return appErrors.NewNotFoundError("Application not found")
@@ -222,6 +222,8 @@ func (s *applicationService) UpdateApplicantStatus(ctx context.Context, companyI
 	if app.CompanyID != companyID {
 		return appErrors.NewForbiddenError("Forbidden: Listing belongs to another company")
 	}
+
+	status := input.Status
 
 	// Validate status transition
 	// - pending -> shortlisted | rejected | interviewed
@@ -242,6 +244,12 @@ func (s *applicationService) UpdateApplicantStatus(ctx context.Context, companyI
 	}
 
 	app.Status = status
+	if status == domain.AppStatusInterviewed {
+		app.InterviewDate = input.InterviewDate
+		app.InterviewTime = input.InterviewTime
+		app.InterviewNotes = input.Notes
+	}
+
 	now := time.Now()
 	app.ReviewedAt = &now
 
@@ -296,6 +304,64 @@ func (s *applicationService) UpdateApplicantStatus(ctx context.Context, companyI
 		}
 	}
 
+	// Trigger notifications and emails if status changes to interviewed
+	if status == domain.AppStatusInterviewed {
+		// Fetch job details for title
+		job, err := s.jobRepo.FindByID(ctx, app.JobID)
+		jobTitle := "Job Position"
+		if err == nil && job != nil {
+			jobTitle = job.Title
+		}
+
+		// Fetch company details for company name
+		company, err := s.companyRepo.FindByID(ctx, app.CompanyID)
+		companyName := "Employer"
+		if err == nil && company != nil {
+			companyName = company.Name
+		}
+
+		// Create in-app Notification
+		title := "Interview Scheduled!"
+		msg := fmt.Sprintf("Congratulations! Your interview for the role of %s at %s has been scheduled on %s at %s.", 
+			jobTitle, companyName, input.InterviewDate, input.InterviewTime)
+		_ = s.notifService.Create(ctx, app.UserID, title, msg, "interview")
+
+		// Fetch user details for email
+		user, err := s.userRepo.FindByID(ctx, app.UserID)
+		if err == nil && user != nil {
+			subject := fmt.Sprintf("Interview Scheduled - %s", companyName)
+			
+			notesSection := ""
+			if input.Notes != "" {
+				notesSection = fmt.Sprintf(`<li style="margin-bottom: 8px;">📝 <strong>Format / Notes:</strong> %s</li>`, input.Notes)
+			}
+			
+			emailBody := fmt.Sprintf(`
+				<div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 8px; max-width: 600px; margin: 0 auto;">
+					<h2 style="color: #3B82F6; text-align: center;">Interview Scheduled!</h2>
+					<p>Dear %s,</p>
+					<p>Your application for the position of <strong>%s</strong> at <strong>%s</strong> has been reviewed, and we would like to invite you for an interview.</p>
+					<div style="background-color: #f3f4f6; padding: 15px; border-radius: 6px; margin: 20px 0;">
+						<h3 style="margin-top: 0; color: #1f2937;">Interview Details</h3>
+						<ul style="list-style: none; padding-left: 0; margin-bottom: 0;">
+							<li style="margin-bottom: 8px;">📅 <strong>Date:</strong> %s</li>
+							<li style="margin-bottom: 8px;">🕒 <strong>Time:</strong> %s</li>
+							%s
+						</ul>
+					</div>
+					<p>Best regards,<br/><strong>%s Hiring Team</strong></p>
+					<hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
+					<p style="font-size: 12px; color: #666; text-align: center;">Online Job Portal &copy; 2026. All rights reserved.</p>
+				</div>
+			`, user.Name, jobTitle, companyName, input.InterviewDate, input.InterviewTime, notesSection, companyName)
+
+			// Send email in a non-blocking goroutine
+			go func(email, sub, body string) {
+				_ = utils.SendEmail(email, sub, body)
+			}(user.Email, subject, emailBody)
+		}
+	}
+
 	return nil
 }
 
@@ -327,6 +393,9 @@ func (s *applicationService) mapToSeekerDTO(ctx context.Context, app *domain.App
 		CoverMessage:   app.CoverMessage,
 		Location:       job.Location,
 		JobType:        job.JobType,
+		InterviewDate:  app.InterviewDate,
+		InterviewTime:  app.InterviewTime,
+		InterviewNotes: app.InterviewNotes,
 	}, nil
 }
 
@@ -369,5 +438,8 @@ func (s *applicationService) mapToCompanyDTO(ctx context.Context, app *domain.Ap
 		ResumeURL:      app.ResumeURL,
 		ResumeFilename: app.ResumeFilename,
 		CoverMessage:   app.CoverMessage,
+		InterviewDate:  app.InterviewDate,
+		InterviewTime:  app.InterviewTime,
+		InterviewNotes: app.InterviewNotes,
 	}, nil
 }

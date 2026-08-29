@@ -288,7 +288,34 @@ func (h *ApplicationHandler) UpdateApplicantStatus(c *gin.Context) {
 		return
 	}
 
-	err = h.appService.UpdateApplicantStatus(c.Request.Context(), companyID, appID, input.Status)
+	if input.Status == "interviewed" {
+		if input.InterviewDate == "" {
+			response.Error(c, appErrors.NewValidationError("interviewDate is required when status is interviewed"))
+			return
+		}
+		parsedDate, err := time.Parse("2006-01-02", input.InterviewDate)
+		if err != nil {
+			response.Error(c, appErrors.NewValidationError("interviewDate must be in YYYY-MM-DD format"))
+			return
+		}
+		today := time.Now().Truncate(24 * time.Hour)
+		if parsedDate.Before(today) {
+			response.Error(c, appErrors.NewValidationError("interviewDate must be today or in the future"))
+			return
+		}
+
+		if input.InterviewTime == "" {
+			response.Error(c, appErrors.NewValidationError("interviewTime is required when status is interviewed"))
+			return
+		}
+		_, err = time.Parse("15:04", input.InterviewTime)
+		if err != nil {
+			response.Error(c, appErrors.NewValidationError("interviewTime must be in HH:MM format"))
+			return
+		}
+	}
+
+	err = h.appService.UpdateApplicantStatus(c.Request.Context(), companyID, appID, input)
 	if err != nil {
 		response.Error(c, err)
 		return
