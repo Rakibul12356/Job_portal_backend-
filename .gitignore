@@ -21,3 +21,7 @@ Thumbs.db
 
 # Credentials
 docs/guides/info.text
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
+.gitignore
