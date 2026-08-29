@@ -29,6 +29,10 @@ func GenerateOTP() (string, error) {
 // This bypasses hosting provider port blocks (like Render's SMTP block) by sending requests over HTTPS (port 443).
 func SendEmail(to string, subject string, htmlBody string) error {
 	cfg := config.AppConfig
+	if cfg.GmailClientID == "" || cfg.GmailClientSecret == "" || cfg.GmailRefreshToken == "" || cfg.GmailSenderEmail == "" {
+		return fmt.Errorf("gmail configuration is incomplete: CLIENT_ID=%t, CLIENT_SECRET=%t, REFRESH_TOKEN=%t, SENDER_EMAIL=%t (check environment variables)",
+			cfg.GmailClientID != "", cfg.GmailClientSecret != "", cfg.GmailRefreshToken != "", cfg.GmailSenderEmail != "")
+	}
 
 	// Configure OAuth2 client config
 	oauthConfig := &oauth2.Config{
