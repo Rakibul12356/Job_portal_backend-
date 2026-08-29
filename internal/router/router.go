@@ -158,6 +158,7 @@ func SetupRouter(
 		}
 
 		// 12. WebSocket endpoint (Public routing, internally authenticated)
+		api.GET("/chats/ws", chatHandler.HandleGlobalWebSocket)
 		api.GET("/chats/:roomId/ws", chatHandler.HandleWebSocket)
 
 		// 13. Notification routes (Authenticated)

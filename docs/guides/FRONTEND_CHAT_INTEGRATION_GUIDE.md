@@ -4,7 +4,19 @@ This guide details how the frontend team can integrate the new advanced WebSocke
 
 ---
 
-## 1. WebSocket Event Protocol (Inbound & Outbound)
+## 1. WebSocket Connections
+
+The backend supports two types of WebSocket connections:
+1. **Global WebSocket Connection:** Establish a socket here on app launch/inbox load to listen for real-time sidebar inbox notifications, unread counts, and user online/offline statuses across all chats.
+   - **Endpoint:** `/api/v1/chats/ws`
+   - **Query Parameter:** `?token=<access_token>`
+2. **Room-level WebSocket Connection:** Establish a socket here when a user opens a specific chat room. This connection handles message sending/receiving, typing indicators, and seen receipt events for that active room.
+   - **Endpoint:** `/api/v1/chats/:roomId/ws`
+   - **Query Parameter:** `?token=<access_token>`
+
+---
+
+## 2. WebSocket Event Protocol (Inbound & Outbound)
 
 All WebSocket communications are now event-driven JSON payloads. You will send and receive objects containing a `"type"` property to distinguish between different event types.
 
@@ -20,7 +32,7 @@ To send a chat message, construct a payload of type `"message"`:
 ```
 
 #### B. Triggering a Typing Indicator
-Send this payload when the user starts or stops typing. Make sure to implement debouncing (see Section 2).
+Send this payload when the user starts or stops typing. Make sure to implement debouncing (see Section 3).
 ```json
 {
   "type": "typing",
@@ -58,6 +70,7 @@ Your client WebSocket listener must parse the incoming JSON payload and check th
   }
 }
 ```
+> **Global Socket Handling Rule:** If you receive a `"message"` event on the **Global WebSocket**, you should check if the active chat room is open. If NOT, increment the `unreadCount` for that `roomId` in the sidebar and trigger a visual notification alert. If it is open, the message will be delivered on the room-specific socket.
 
 #### B. Message Status Update (Sent / Delivered / Seen)
 This event notifies the client when messages have transitioned their status (e.g. from single tick to double tick, or double tick to blue seen tick).
@@ -103,7 +116,7 @@ This event notifies you when the other participant in the active chat room conne
 
 ---
 
-## 2. Best Practices for Keystroke Debouncing (Typing Indicators)
+## 3. Best Practices for Keystroke Debouncing (Typing Indicators)
 
 To prevent flooding the WebSocket connection with packets on every single keypress, the client should debounce keystrokes:
 
@@ -114,7 +127,7 @@ To prevent flooding the WebSocket connection with packets on every single keypre
 
 ---
 
-## 3. Tick Mark Rendering UI Guidelines
+## 4. Tick Mark Rendering UI Guidelines
 
 When rendering sent/received message status tick marks:
 * **Message sent by another user:** Never render tick marks.

@@ -21,6 +21,7 @@ type ChatService interface {
 	ListUserRooms(ctx context.Context, userID primitive.ObjectID, role string) ([]dto.ChatRoomResponseDTO, error)
 	GetRoomMessages(ctx context.Context, roomID, userID primitive.ObjectID, limit, offset int64) ([]domain.ChatMessage, error)
 	HandleWebSocket(roomID, userID primitive.ObjectID, conn *websocket.Conn) error
+	HandleGlobalWebSocket(userID primitive.ObjectID, conn *websocket.Conn) error
 }
 
 type wsInboundPayload struct {
@@ -55,9 +56,10 @@ type chatService struct {
 	profileRepo repository.ProfileRepository
 
 	// WebSocket connection management
-	clientsMu         sync.RWMutex
-	activeRoomClients map[primitive.ObjectID][]*Client
-	activeUsers       map[primitive.ObjectID]int // UserID -> connection count
+	clientsMu           sync.RWMutex
+	activeRoomClients   map[primitive.ObjectID][]*Client
+	activeGlobalClients map[primitive.ObjectID][]*Client // UserID -> []*Client
+	activeUsers         map[primitive.ObjectID]int       // UserID -> connection count
 }
 
 func NewChatService(
@@ -69,14 +71,15 @@ func NewChatService(
 	profileRepo repository.ProfileRepository,
 ) ChatService {
 	return &chatService{
-		chatRepo:          chatRepo,
-		userRepo:          userRepo,
-		jobRepo:           jobRepo,
-		appRepo:           appRepo,
-		companyRepo:       companyRepo,
-		profileRepo:       profileRepo,
-		activeRoomClients: make(map[primitive.ObjectID][]*Client),
-		activeUsers:       make(map[primitive.ObjectID]int),
+		chatRepo:            chatRepo,
+		userRepo:            userRepo,
+		jobRepo:             jobRepo,
+		appRepo:             appRepo,
+		companyRepo:         companyRepo,
+		profileRepo:         profileRepo,
+		activeRoomClients:   make(map[primitive.ObjectID][]*Client),
+		activeGlobalClients: make(map[primitive.ObjectID][]*Client),
+		activeUsers:         make(map[primitive.ObjectID]int),
 	}
 }
 
@@ -239,10 +242,10 @@ func (s *chatService) HandleWebSocket(roomID, userID primitive.ObjectID, conn *w
 	client := s.registerClient(roomID, userID, conn)
 	defer s.unregisterClient(roomID, client)
 
-	// 3. Mark messages as read on connect
+	// 3. Mark messages as read on connect (only other user's messages to this user)
 	_ = s.chatRepo.MarkMessagesAsRead(ctx, roomID, userID)
 
-	// Broadcast seen status to the room
+	// Broadcast seen status to the room and globally
 	seenPayload := wsOutboundPayload{
 		Type:   "message_status",
 		RoomID: roomID.Hex(),
@@ -250,17 +253,22 @@ func (s *chatService) HandleWebSocket(roomID, userID primitive.ObjectID, conn *w
 		SeenBy: userID.Hex(),
 	}
 	s.broadcastEventToRoom(roomID, seenPayload)
+	s.broadcastEventGlobally(room.SeekerID, room.EmployerID, seenPayload)
 
-	// Update B's pending messages to B (this user) as delivered in other rooms
+	// Update B's pending messages to B (this user) as delivered in all of B's rooms
 	affectedRooms, err := s.chatRepo.MarkAllMessagesAsDelivered(ctx, userID)
 	if err == nil && len(affectedRooms) > 0 {
 		for _, rID := range affectedRooms {
-			delivPayload := wsOutboundPayload{
-				Type:   "message_status",
-				RoomID: rID.Hex(),
-				Status: "delivered",
+			rDetails, err := s.chatRepo.FindRoomByID(ctx, rID)
+			if err == nil && rDetails != nil {
+				delivPayload := wsOutboundPayload{
+					Type:   "message_status",
+					RoomID: rID.Hex(),
+					Status: "delivered",
+				}
+				s.broadcastEventToRoom(rID, delivPayload)
+				s.broadcastEventGlobally(rDetails.SeekerID, rDetails.EmployerID, delivPayload)
 			}
-			s.broadcastEventToRoom(rID, delivPayload)
 		}
 	}
 
@@ -285,7 +293,6 @@ func (s *chatService) HandleWebSocket(roomID, userID primitive.ObjectID, conn *w
 	for {
 		_, messageBytes, err := conn.ReadMessage()
 		if err != nil {
-			// Disconnection / Read error
 			break
 		}
 
@@ -340,12 +347,13 @@ func (s *chatService) HandleWebSocket(roomID, userID primitive.ObjectID, conn *w
 				continue
 			}
 
-			// Broadcast message to room
+			// Broadcast message to room and globally
 			msgPayload := wsOutboundPayload{
 				Type:    "message",
 				Message: chatMsg,
 			}
 			s.broadcastEventToRoom(roomID, msgPayload)
+			s.broadcastEventGlobally(room.SeekerID, room.EmployerID, msgPayload)
 
 		case "typing":
 			// Fetch sender's name to display
@@ -372,10 +380,10 @@ func (s *chatService) HandleWebSocket(roomID, userID primitive.ObjectID, conn *w
 			s.clientsMu.RUnlock()
 
 		case "seen":
-			// Mark messages as read / seen in database
+			// Mark messages as read / seen in database (only other user's messages to reader B)
 			_ = s.chatRepo.MarkMessagesAsRead(ctx, roomID, userID)
 
-			// Broadcast seen status to room
+			// Broadcast seen status to room and globally
 			seenPayload := wsOutboundPayload{
 				Type:   "message_status",
 				RoomID: roomID.Hex(),
@@ -383,6 +391,42 @@ func (s *chatService) HandleWebSocket(roomID, userID primitive.ObjectID, conn *w
 				SeenBy: userID.Hex(),
 			}
 			s.broadcastEventToRoom(roomID, seenPayload)
+			s.broadcastEventGlobally(room.SeekerID, room.EmployerID, seenPayload)
+		}
+	}
+
+	return nil
+}
+
+func (s *chatService) HandleGlobalWebSocket(userID primitive.ObjectID, conn *websocket.Conn) error {
+	ctx := context.Background()
+
+	// 1. Register global connection
+	client := s.registerGlobalClient(userID, conn)
+	defer s.unregisterGlobalClient(userID, client)
+
+	// 2. delivered synchronization scan on connect
+	affectedRooms, err := s.chatRepo.MarkAllMessagesAsDelivered(ctx, userID)
+	if err == nil && len(affectedRooms) > 0 {
+		for _, rID := range affectedRooms {
+			rDetails, err := s.chatRepo.FindRoomByID(ctx, rID)
+			if err == nil && rDetails != nil {
+				delivPayload := wsOutboundPayload{
+					Type:   "message_status",
+					RoomID: rID.Hex(),
+					Status: "delivered",
+				}
+				s.broadcastEventToRoom(rID, delivPayload)
+				s.broadcastEventGlobally(rDetails.SeekerID, rDetails.EmployerID, delivPayload)
+			}
+		}
+	}
+
+	// 3. Keep connection alive
+	for {
+		_, _, err := conn.ReadMessage()
+		if err != nil {
+			break
 		}
 	}
 
@@ -432,6 +476,49 @@ func (s *chatService) unregisterClient(roomID primitive.ObjectID, client *Client
 	}
 }
 
+func (s *chatService) registerGlobalClient(userID primitive.ObjectID, conn *websocket.Conn) *Client {
+	s.clientsMu.Lock()
+	defer s.clientsMu.Unlock()
+
+	client := &Client{
+		UserID: userID,
+		Conn:   conn,
+	}
+
+	s.activeGlobalClients[userID] = append(s.activeGlobalClients[userID], client)
+
+	s.activeUsers[userID]++
+	if s.activeUsers[userID] == 1 {
+		go s.broadcastUserStatus(userID, "online")
+	}
+
+	return client
+}
+
+func (s *chatService) unregisterGlobalClient(userID primitive.ObjectID, client *Client) {
+	s.clientsMu.Lock()
+	defer s.clientsMu.Unlock()
+
+	clients := s.activeGlobalClients[userID]
+	for i, c := range clients {
+		if c == client {
+			c.Conn.Close()
+			s.activeGlobalClients[userID] = append(clients[:i], clients[i+1:]...)
+			break
+		}
+	}
+
+	if len(s.activeGlobalClients[userID]) == 0 {
+		delete(s.activeGlobalClients, userID)
+	}
+
+	s.activeUsers[userID]--
+	if s.activeUsers[userID] <= 0 {
+		delete(s.activeUsers, userID)
+		go s.broadcastUserStatus(userID, "offline")
+	}
+}
+
 func (s *chatService) isUserOnline(userID primitive.ObjectID) bool {
 	s.clientsMu.RLock()
 	defer s.clientsMu.RUnlock()
@@ -470,6 +557,7 @@ func (s *chatService) broadcastStatusToRooms(rooms []domain.ChatRoom, userID pri
 	}
 	for _, room := range rooms {
 		s.broadcastEventToRoom(room.ID, payload)
+		s.broadcastEventGlobally(room.SeekerID, room.EmployerID, payload)
 	}
 }
 
@@ -479,6 +567,21 @@ func (s *chatService) broadcastEventToRoom(roomID primitive.ObjectID, payload ws
 
 	clients := s.activeRoomClients[roomID]
 	for _, client := range clients {
+		_ = client.Conn.WriteJSON(payload)
+	}
+}
+
+func (s *chatService) broadcastEventGlobally(seekerID, employerID primitive.ObjectID, payload wsOutboundPayload) {
+	s.sendToGlobalClient(seekerID, payload)
+	s.sendToGlobalClient(employerID, payload)
+}
+
+func (s *chatService) sendToGlobalClient(userID primitive.ObjectID, payload wsOutboundPayload) {
+	s.clientsMu.RLock()
+	defer s.clientsMu.RUnlock()
+
+	globalConns := s.activeGlobalClients[userID]
+	for _, client := range globalConns {
 		_ = client.Conn.WriteJSON(payload)
 	}
 }

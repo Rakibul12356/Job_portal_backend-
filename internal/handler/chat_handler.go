@@ -177,3 +177,36 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 		log.Printf("WebSocket connection ended: %v", err)
 	}
 }
+
+func (h *ChatHandler) HandleGlobalWebSocket(c *gin.Context) {
+	// Read token from query parameter since WebSockets don't easily allow headers in browsers
+	tokenStr := c.Query("token")
+	if tokenStr == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication token is required"})
+		return
+	}
+
+	claims, err := utils.VerifyAccessToken(tokenStr)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
+		return
+	}
+
+	userID, err := primitive.ObjectIDFromHex(claims.Subject)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user identity"})
+		return
+	}
+
+	// Upgrade HTTP connection to WebSocket protocol
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		log.Printf("Failed to upgrade to Global WebSocket connection: %v", err)
+		return
+	}
+
+	err = h.chatService.HandleGlobalWebSocket(userID, conn)
+	if err != nil {
+		log.Printf("Global WebSocket connection ended: %v", err)
+	}
+}
