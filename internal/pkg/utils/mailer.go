@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
+	"os"
 
 	"github.com/rakib/job-portal-api/internal/config"
 	"github.com/resend/resend-go/v2"
@@ -25,10 +26,14 @@ func GenerateOTP() (string, error) {
 func SendEmail(to string, subject string, htmlBody string) error {
 	cfg := config.AppConfig
 
-	// We reuse SMTPPass to hold the Resend API key to avoid breaking existing configurations.
+	// Support both SMTP_PASS and RESEND_API_KEY environment variables
 	apiKey := cfg.SMTPPass
 	if apiKey == "" {
-		return fmt.Errorf("resend API key is empty (check SMTP_PASS in configuration)")
+		apiKey = os.Getenv("RESEND_API_KEY")
+	}
+
+	if apiKey == "" {
+		return fmt.Errorf("resend API key is empty (check SMTP_PASS or RESEND_API_KEY in configuration)")
 	}
 
 	client := resend.NewClient(apiKey)
@@ -47,5 +52,6 @@ func SendEmail(to string, subject string, htmlBody string) error {
 
 	return nil
 }
+
 
 
