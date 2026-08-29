@@ -94,6 +94,10 @@ func LoadConfig() *Config {
 
 func getEnv(key, defaultVal string) string {
 	if val, ok := os.LookupEnv(key); ok {
+		val = strings.TrimSpace(val)
+		if len(val) >= 2 && ((val[0] == '"' && val[len(val)-1] == '"') || (val[0] == '\'' && val[len(val)-1] == '\'')) {
+			val = val[1 : len(val)-1]
+		}
 		return val
 	}
 	return defaultVal
