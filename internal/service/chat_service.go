@@ -323,10 +323,8 @@ func (s *chatService) HandleWebSocket(roomID, userID primitive.ObjectID, conn *w
 
 			// Determine initial message status
 			status := "sent"
-			if s.isUserInRoom(roomID, recipientID) {
-				status = "seen" // If recipient is in the same room, they see it instantly
-			} else if s.isUserOnline(recipientID) {
-				status = "delivered" // If recipient is online but in another room
+			if s.isUserOnline(recipientID) {
+				status = "delivered"
 			}
 
 			// Save message to database
@@ -335,7 +333,7 @@ func (s *chatService) HandleWebSocket(roomID, userID primitive.ObjectID, conn *w
 				RoomID:    roomID,
 				SenderID:  userID,
 				Message:   payload.Message,
-				IsRead:    status == "seen",
+				IsRead:    false,
 				Status:    status,
 				CreatedAt: time.Now(),
 			}
@@ -347,13 +345,33 @@ func (s *chatService) HandleWebSocket(roomID, userID primitive.ObjectID, conn *w
 				continue
 			}
 
-			// Broadcast message to room and globally
+			// Broadcast message
 			msgPayload := wsOutboundPayload{
 				Type:    "message",
 				Message: chatMsg,
 			}
-			s.broadcastEventToRoom(roomID, msgPayload)
-			s.broadcastEventGlobally(room.SeekerID, room.EmployerID, msgPayload)
+
+			if status == "delivered" {
+				// Broadcast to room (both participants)
+				s.broadcastEventToRoom(roomID, msgPayload)
+
+				// Reaches the recipient globally if they are online but not in the active room
+				if !s.isUserInRoom(roomID, recipientID) {
+					s.sendToGlobalClient(recipientID, msgPayload)
+				}
+				// Reaches the sender globally (if they have multiple connections)
+				if !s.isUserInRoom(roomID, userID) {
+					s.sendToGlobalClient(userID, msgPayload)
+				}
+			} else {
+				// Recipient is offline - only send/broadcast to the sender
+				// Send to sender's active room connection
+				s.sendToRoomClient(roomID, userID, msgPayload)
+				// Send to sender's global connections (if not in room)
+				if !s.isUserInRoom(roomID, userID) {
+					s.sendToGlobalClient(userID, msgPayload)
+				}
+			}
 
 		case "typing":
 			// Fetch sender's name to display
@@ -568,6 +586,18 @@ func (s *chatService) broadcastEventToRoom(roomID primitive.ObjectID, payload ws
 	clients := s.activeRoomClients[roomID]
 	for _, client := range clients {
 		_ = client.Conn.WriteJSON(payload)
+	}
+}
+
+func (s *chatService) sendToRoomClient(roomID, userID primitive.ObjectID, payload wsOutboundPayload) {
+	s.clientsMu.RLock()
+	defer s.clientsMu.RUnlock()
+
+	clients := s.activeRoomClients[roomID]
+	for _, client := range clients {
+		if client.UserID == userID {
+			_ = client.Conn.WriteJSON(payload)
+		}
 	}
 }
 

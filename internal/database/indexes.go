@@ -153,5 +153,53 @@ func MigrateIndexes(db *mongo.Database) {
 		log.Printf("Warning: Failed to create saved_jobs userId-createdAt index: %v", err)
 	}
 
+	// 6. Chat Rooms indexes
+	roomsCol := db.Collection("chat_rooms")
+	_, err = roomsCol.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "jobId", Value: 1},
+			{Key: "seekerId", Value: 1},
+			{Key: "employerId", Value: 1},
+		},
+		Options: options.Index().SetUnique(true),
+	})
+	if err != nil {
+		log.Printf("Warning: Failed to create chat_rooms unique participants index: %v", err)
+	}
+	_, err = roomsCol.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "seekerId", Value: 1}},
+	})
+	if err != nil {
+		log.Printf("Warning: Failed to create chat_rooms seekerId index: %v", err)
+	}
+	_, err = roomsCol.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "employerId", Value: 1}},
+	})
+	if err != nil {
+		log.Printf("Warning: Failed to create chat_rooms employerId index: %v", err)
+	}
+
+	// 7. Chat Messages indexes
+	messagesCol := db.Collection("chat_messages")
+	_, err = messagesCol.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "roomId", Value: 1},
+			{Key: "createdAt", Value: -1},
+		},
+	})
+	if err != nil {
+		log.Printf("Warning: Failed to create chat_messages roomId-createdAt index: %v", err)
+	}
+	_, err = messagesCol.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "roomId", Value: 1},
+			{Key: "senderId", Value: 1},
+			{Key: "status", Value: 1},
+		},
+	})
+	if err != nil {
+		log.Printf("Warning: Failed to create chat_messages roomId-senderId-status index: %v", err)
+	}
+
 	log.Println("MongoDB database indexes migrated successfully.")
 }

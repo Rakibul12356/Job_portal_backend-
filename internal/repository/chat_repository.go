@@ -95,6 +95,9 @@ func (r *mongoChatRepository) SaveMessage(ctx context.Context, msg *domain.ChatM
 	if msg.ID.IsZero() {
 		msg.ID = primitive.NewObjectID()
 	}
+	if msg.Status == "" {
+		msg.Status = "sent"
+	}
 	_, err := r.messagesCol.InsertOne(ctx, msg)
 	if err != nil {
 		return err
@@ -136,7 +139,7 @@ func (r *mongoChatRepository) MarkMessagesAsRead(ctx context.Context, roomID, re
 	_, err := r.messagesCol.UpdateMany(ctx, bson.M{
 		"roomId":   roomID,
 		"senderId": bson.M{"$ne": readerID},
-		"isRead":   false,
+		"status":   bson.M{"$ne": "seen"},
 	}, bson.M{
 		"$set": bson.M{"isRead": true, "status": "seen"},
 	})
@@ -171,9 +174,30 @@ func (r *mongoChatRepository) MarkAllMessagesAsDelivered(ctx context.Context, re
 		return roomIDs, nil
 	}
 
+	// Find all unique room IDs with unsent/delivered messages sent to this recipient
+	distinctRoomIDs, err := r.messagesCol.Distinct(ctx, "roomId", bson.M{
+		"roomId":   bson.M{"$in": roomIDs},
+		"senderId": bson.M{"$ne": recipientID},
+		"status":   bson.M{"$in": []interface{}{"sent", "", nil}},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var affectedRoomIDs []primitive.ObjectID
+	for _, id := range distinctRoomIDs {
+		if oid, ok := id.(primitive.ObjectID); ok {
+			affectedRoomIDs = append(affectedRoomIDs, oid)
+		}
+	}
+
+	if len(affectedRoomIDs) == 0 {
+		return affectedRoomIDs, nil
+	}
+
 	// Update all "sent" messages in B's rooms where sender is not B to "delivered"
 	_, err = r.messagesCol.UpdateMany(ctx, bson.M{
-		"roomId":   bson.M{"$in": roomIDs},
+		"roomId":   bson.M{"$in": affectedRoomIDs},
 		"senderId": bson.M{"$ne": recipientID},
 		"status":   bson.M{"$in": []interface{}{"sent", "", nil}}, // match sent or unset status
 	}, bson.M{
@@ -183,7 +207,7 @@ func (r *mongoChatRepository) MarkAllMessagesAsDelivered(ctx context.Context, re
 		return nil, err
 	}
 
-	return roomIDs, nil
+	return affectedRoomIDs, nil
 }
 
 func (r *mongoChatRepository) GetLastMessage(ctx context.Context, roomID primitive.ObjectID) (*domain.ChatMessage, error) {
