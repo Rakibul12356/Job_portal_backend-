@@ -19,6 +19,7 @@ type ChatRepository interface {
 	SaveMessage(ctx context.Context, msg *domain.ChatMessage) error
 	GetMessagesByRoom(ctx context.Context, roomID primitive.ObjectID, limit, offset int64) ([]domain.ChatMessage, error)
 	MarkMessagesAsRead(ctx context.Context, roomID, readerID primitive.ObjectID) error
+	MarkAllMessagesAsDelivered(ctx context.Context, recipientID primitive.ObjectID) ([]primitive.ObjectID, error)
 	GetLastMessage(ctx context.Context, roomID primitive.ObjectID) (*domain.ChatMessage, error)
 	GetUnreadCount(ctx context.Context, roomID, userID primitive.ObjectID) (int64, error)
 }
@@ -137,9 +138,52 @@ func (r *mongoChatRepository) MarkMessagesAsRead(ctx context.Context, roomID, re
 		"senderId": bson.M{"$ne": readerID},
 		"isRead":   false,
 	}, bson.M{
-		"$set": bson.M{"isRead": true},
+		"$set": bson.M{"isRead": true, "status": "seen"},
 	})
 	return err
+}
+
+func (r *mongoChatRepository) MarkAllMessagesAsDelivered(ctx context.Context, recipientID primitive.ObjectID) ([]primitive.ObjectID, error) {
+	// Find all rooms B is a participant of
+	filter := bson.M{
+		"$or": []bson.M{
+			{"seekerId": recipientID},
+			{"employerId": recipientID},
+		},
+	}
+	cursor, err := r.roomsCol.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var rooms []domain.ChatRoom
+	if err = cursor.All(ctx, &rooms); err != nil {
+		return nil, err
+	}
+
+	roomIDs := make([]primitive.ObjectID, 0, len(rooms))
+	for _, room := range rooms {
+		roomIDs = append(roomIDs, room.ID)
+	}
+
+	if len(roomIDs) == 0 {
+		return roomIDs, nil
+	}
+
+	// Update all "sent" messages in B's rooms where sender is not B to "delivered"
+	_, err = r.messagesCol.UpdateMany(ctx, bson.M{
+		"roomId":   bson.M{"$in": roomIDs},
+		"senderId": bson.M{"$ne": recipientID},
+		"status":   bson.M{"$in": []interface{}{"sent", "", nil}}, // match sent or unset status
+	}, bson.M{
+		"$set": bson.M{"status": "delivered"},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return roomIDs, nil
 }
 
 func (r *mongoChatRepository) GetLastMessage(ctx context.Context, roomID primitive.ObjectID) (*domain.ChatMessage, error) {

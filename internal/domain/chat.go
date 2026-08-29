@@ -21,5 +21,6 @@ type ChatMessage struct {
 	SenderID  primitive.ObjectID `bson:"senderId" json:"senderId"`
 	Message   string             `bson:"message" json:"message"`
 	IsRead    bool               `bson:"isRead" json:"isRead"`
+	Status    string             `bson:"status" json:"status"` // sent | delivered | seen
 	CreatedAt time.Time          `bson:"createdAt" json:"createdAt"`
 }

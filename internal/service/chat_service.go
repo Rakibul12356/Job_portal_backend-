@@ -23,8 +23,22 @@ type ChatService interface {
 	HandleWebSocket(roomID, userID primitive.ObjectID, conn *websocket.Conn) error
 }
 
-type wsMessagePayload struct {
-	Message string `json:"message"`
+type wsInboundPayload struct {
+	Type     string `json:"type"`     // "message" | "typing" | "seen"
+	Message  string `json:"message"`  // for type "message"
+	IsTyping bool   `json:"isTyping"` // for type "typing"
+}
+
+type wsOutboundPayload struct {
+	Type       string               `json:"type"`                 // "message" | "message_status" | "typing" | "user_status"
+	Message    *domain.ChatMessage  `json:"message,omitempty"`    // for type "message"
+	RoomID     string               `json:"roomId,omitempty"`     // for type "message_status"
+	Status     string               `json:"status,omitempty"`     // for type "message_status" / "user_status"
+	SeenBy     string               `json:"seenBy,omitempty"`     // for type "message_status"
+	UserID     string               `json:"userId,omitempty"`     // for type "user_status"
+	SenderID   string               `json:"senderId,omitempty"`   // for type "typing"
+	SenderName string               `json:"senderName,omitempty"` // for type "typing"
+	IsTyping   bool                 `json:"isTyping,omitempty"`   // for type "typing"
 }
 
 type Client struct {
@@ -43,6 +57,7 @@ type chatService struct {
 	// WebSocket connection management
 	clientsMu         sync.RWMutex
 	activeRoomClients map[primitive.ObjectID][]*Client
+	activeUsers       map[primitive.ObjectID]int // UserID -> connection count
 }
 
 func NewChatService(
@@ -61,6 +76,7 @@ func NewChatService(
 		companyRepo:       companyRepo,
 		profileRepo:       profileRepo,
 		activeRoomClients: make(map[primitive.ObjectID][]*Client),
+		activeUsers:       make(map[primitive.ObjectID]int),
 	}
 }
 
@@ -226,6 +242,45 @@ func (s *chatService) HandleWebSocket(roomID, userID primitive.ObjectID, conn *w
 	// 3. Mark messages as read on connect
 	_ = s.chatRepo.MarkMessagesAsRead(ctx, roomID, userID)
 
+	// Broadcast seen status to the room
+	seenPayload := wsOutboundPayload{
+		Type:   "message_status",
+		RoomID: roomID.Hex(),
+		Status: "seen",
+		SeenBy: userID.Hex(),
+	}
+	s.broadcastEventToRoom(roomID, seenPayload)
+
+	// Update B's pending messages to B (this user) as delivered in other rooms
+	affectedRooms, err := s.chatRepo.MarkAllMessagesAsDelivered(ctx, userID)
+	if err == nil && len(affectedRooms) > 0 {
+		for _, rID := range affectedRooms {
+			delivPayload := wsOutboundPayload{
+				Type:   "message_status",
+				RoomID: rID.Hex(),
+				Status: "delivered",
+			}
+			s.broadcastEventToRoom(rID, delivPayload)
+		}
+	}
+
+	// Send initial status of the other user to the connecting client
+	var otherUserID primitive.ObjectID
+	if room.SeekerID == userID {
+		otherUserID = room.EmployerID
+	} else {
+		otherUserID = room.SeekerID
+	}
+	initialStatus := "offline"
+	if s.isUserOnline(otherUserID) {
+		initialStatus = "online"
+	}
+	_ = conn.WriteJSON(wsOutboundPayload{
+		Type:   "user_status",
+		UserID: otherUserID.Hex(),
+		Status: initialStatus,
+	})
+
 	// 4. Message reading loop
 	for {
 		_, messageBytes, err := conn.ReadMessage()
@@ -234,35 +289,101 @@ func (s *chatService) HandleWebSocket(roomID, userID primitive.ObjectID, conn *w
 			break
 		}
 
-		var payload wsMessagePayload
+		var payload wsInboundPayload
 		if err := json.Unmarshal(messageBytes, &payload); err != nil {
 			conn.WriteJSON(map[string]string{"error": "Invalid payload format"})
 			continue
 		}
 
-		if payload.Message == "" {
-			continue
+		// Support backward compatibility (if type is empty but message is not)
+		if payload.Type == "" && payload.Message != "" {
+			payload.Type = "message"
 		}
 
-		// Save message to database
-		chatMsg := &domain.ChatMessage{
-			ID:        primitive.NewObjectID(),
-			RoomID:    roomID,
-			SenderID:  userID,
-			Message:   payload.Message,
-			IsRead:    false,
-			CreatedAt: time.Now(),
-		}
+		switch payload.Type {
+		case "message":
+			if payload.Message == "" {
+				continue
+			}
 
-		err = s.chatRepo.SaveMessage(ctx, chatMsg)
-		if err != nil {
-			log.Printf("Failed to save chat message: %v", err)
-			conn.WriteJSON(map[string]string{"error": "Failed to save message"})
-			continue
-		}
+			// Determine recipient ID
+			var recipientID primitive.ObjectID
+			if room.SeekerID == userID {
+				recipientID = room.EmployerID
+			} else {
+				recipientID = room.SeekerID
+			}
 
-		// Broadcast message to room
-		s.broadcastToRoom(roomID, chatMsg)
+			// Determine initial message status
+			status := "sent"
+			if s.isUserInRoom(roomID, recipientID) {
+				status = "seen" // If recipient is in the same room, they see it instantly
+			} else if s.isUserOnline(recipientID) {
+				status = "delivered" // If recipient is online but in another room
+			}
+
+			// Save message to database
+			chatMsg := &domain.ChatMessage{
+				ID:        primitive.NewObjectID(),
+				RoomID:    roomID,
+				SenderID:  userID,
+				Message:   payload.Message,
+				IsRead:    status == "seen",
+				Status:    status,
+				CreatedAt: time.Now(),
+			}
+
+			err = s.chatRepo.SaveMessage(ctx, chatMsg)
+			if err != nil {
+				log.Printf("Failed to save chat message: %v", err)
+				conn.WriteJSON(map[string]string{"error": "Failed to save message"})
+				continue
+			}
+
+			// Broadcast message to room
+			msgPayload := wsOutboundPayload{
+				Type:    "message",
+				Message: chatMsg,
+			}
+			s.broadcastEventToRoom(roomID, msgPayload)
+
+		case "typing":
+			// Fetch sender's name to display
+			user, err := s.userRepo.FindByID(ctx, userID)
+			senderName := "Someone"
+			if err == nil && user != nil {
+				senderName = user.Name
+			}
+
+			typingPayload := wsOutboundPayload{
+				Type:       "typing",
+				SenderID:   userID.Hex(),
+				SenderName: senderName,
+				IsTyping:   payload.IsTyping,
+			}
+			// Broadcast typing indicator to other clients in the room
+			s.clientsMu.RLock()
+			clients := s.activeRoomClients[roomID]
+			for _, client := range clients {
+				if client.UserID != userID {
+					_ = client.Conn.WriteJSON(typingPayload)
+				}
+			}
+			s.clientsMu.RUnlock()
+
+		case "seen":
+			// Mark messages as read / seen in database
+			_ = s.chatRepo.MarkMessagesAsRead(ctx, roomID, userID)
+
+			// Broadcast seen status to room
+			seenPayload := wsOutboundPayload{
+				Type:   "message_status",
+				RoomID: roomID.Hex(),
+				Status: "seen",
+				SeenBy: userID.Hex(),
+			}
+			s.broadcastEventToRoom(roomID, seenPayload)
+		}
 	}
 
 	return nil
@@ -278,6 +399,12 @@ func (s *chatService) registerClient(roomID, userID primitive.ObjectID, conn *we
 	}
 
 	s.activeRoomClients[roomID] = append(s.activeRoomClients[roomID], client)
+
+	s.activeUsers[userID]++
+	if s.activeUsers[userID] == 1 {
+		go s.broadcastUserStatus(userID, "online")
+	}
+
 	return client
 }
 
@@ -288,9 +415,7 @@ func (s *chatService) unregisterClient(roomID primitive.ObjectID, client *Client
 	clients := s.activeRoomClients[roomID]
 	for i, c := range clients {
 		if c == client {
-			// Close WebSocket connection cleanly
 			c.Conn.Close()
-			// Remove from slice
 			s.activeRoomClients[roomID] = append(clients[:i], clients[i+1:]...)
 			break
 		}
@@ -299,17 +424,61 @@ func (s *chatService) unregisterClient(roomID primitive.ObjectID, client *Client
 	if len(s.activeRoomClients[roomID]) == 0 {
 		delete(s.activeRoomClients, roomID)
 	}
+
+	s.activeUsers[client.UserID]--
+	if s.activeUsers[client.UserID] <= 0 {
+		delete(s.activeUsers, client.UserID)
+		go s.broadcastUserStatus(client.UserID, "offline")
+	}
 }
 
-func (s *chatService) broadcastToRoom(roomID primitive.ObjectID, msg *domain.ChatMessage) {
+func (s *chatService) isUserOnline(userID primitive.ObjectID) bool {
+	s.clientsMu.RLock()
+	defer s.clientsMu.RUnlock()
+	return s.activeUsers[userID] > 0
+}
+
+func (s *chatService) isUserInRoom(roomID, userID primitive.ObjectID) bool {
+	s.clientsMu.RLock()
+	defer s.clientsMu.RUnlock()
+	clients := s.activeRoomClients[roomID]
+	for _, c := range clients {
+		if c.UserID == userID {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *chatService) broadcastUserStatus(userID primitive.ObjectID, status string) {
+	ctx := context.Background()
+	rooms, err := s.chatRepo.ListRoomsForUser(ctx, userID, "company")
+	if err == nil {
+		s.broadcastStatusToRooms(rooms, userID, status)
+	}
+	roomsUser, err := s.chatRepo.ListRoomsForUser(ctx, userID, "user")
+	if err == nil {
+		s.broadcastStatusToRooms(roomsUser, userID, status)
+	}
+}
+
+func (s *chatService) broadcastStatusToRooms(rooms []domain.ChatRoom, userID primitive.ObjectID, status string) {
+	payload := wsOutboundPayload{
+		Type:   "user_status",
+		UserID: userID.Hex(),
+		Status: status,
+	}
+	for _, room := range rooms {
+		s.broadcastEventToRoom(room.ID, payload)
+	}
+}
+
+func (s *chatService) broadcastEventToRoom(roomID primitive.ObjectID, payload wsOutboundPayload) {
 	s.clientsMu.RLock()
 	defer s.clientsMu.RUnlock()
 
 	clients := s.activeRoomClients[roomID]
 	for _, client := range clients {
-		err := client.Conn.WriteJSON(msg)
-		if err != nil {
-			log.Printf("Failed to broadcast message to user %s: %v", client.UserID.Hex(), err)
-		}
+		_ = client.Conn.WriteJSON(payload)
 	}
 }
