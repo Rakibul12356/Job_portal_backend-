@@ -16,6 +16,7 @@ func SetupRouter(
 	dashboardHandler *handler.DashboardHandler,
 	healthHandler *handler.HealthHandler,
 	chatHandler *handler.ChatHandler,
+	notifHandler *handler.NotificationHandler,
 ) *gin.Engine {
 	r := gin.New()
 
@@ -158,6 +159,14 @@ func SetupRouter(
 
 		// 12. WebSocket endpoint (Public routing, internally authenticated)
 		api.GET("/chats/:roomId/ws", chatHandler.HandleWebSocket)
+
+		// 13. Notification routes (Authenticated)
+		notifications := api.Group("/notifications")
+		notifications.Use(middleware.AuthRequired())
+		{
+			notifications.GET("", notifHandler.GetMyNotifications)
+			notifications.PATCH("/:id/read", notifHandler.MarkAsRead)
+		}
 	}
 
 	// Own job detail for edit is mounted inside cJobs group

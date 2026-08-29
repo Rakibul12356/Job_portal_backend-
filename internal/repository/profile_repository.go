@@ -15,6 +15,7 @@ type ProfileRepository interface {
 	FindByUserID(ctx context.Context, userID primitive.ObjectID) (*domain.SeekerProfile, error)
 	FindByID(ctx context.Context, id primitive.ObjectID) (*domain.SeekerProfile, error)
 	Update(ctx context.Context, profile *domain.SeekerProfile) error
+	FindAllWithAlerts(ctx context.Context) ([]*domain.SeekerProfile, error)
 }
 
 type mongoProfileRepository struct {
@@ -60,3 +61,28 @@ func (r *mongoProfileRepository) Update(ctx context.Context, profile *domain.See
 	_, err := r.collection.ReplaceOne(ctx, bson.M{"_id": profile.ID}, profile)
 	return err
 }
+
+func (r *mongoProfileRepository) FindAllWithAlerts(ctx context.Context) ([]*domain.SeekerProfile, error) {
+	profiles := make([]*domain.SeekerProfile, 0)
+	filter := bson.M{"jobAlertsEnabled": bson.M{"$ne": false}}
+	cursor, err := r.collection.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	for cursor.Next(ctx) {
+		var profile domain.SeekerProfile
+		if err := cursor.Decode(&profile); err != nil {
+			return nil, err
+		}
+		profiles = append(profiles, &profile)
+	}
+
+	if err := cursor.Err(); err != nil {
+		return nil, err
+	}
+
+	return profiles, nil
+}
+

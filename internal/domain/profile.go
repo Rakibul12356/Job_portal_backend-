@@ -58,7 +58,8 @@ type SeekerProfile struct {
 	Education  []Education        `bson:"education" json:"education"`
 	AvatarURL  string             `bson:"avatarUrl" json:"avatarUrl"`
 	Resume     *ResumeMetadata    `bson:"resume,omitempty" json:"resume,omitempty"`
-	Social     SeekerSocial       `bson:"social" json:"social"`
-	CreatedAt  time.Time          `bson:"createdAt" json:"createdAt"`
-	UpdatedAt  time.Time          `bson:"updatedAt" json:"updatedAt"`
+	Social           SeekerSocial       `bson:"social" json:"social"`
+	JobAlertsEnabled bool               `bson:"jobAlertsEnabled" json:"jobAlertsEnabled"`
+	CreatedAt        time.Time          `bson:"createdAt" json:"createdAt"`
+	UpdatedAt        time.Time          `bson:"updatedAt" json:"updatedAt"`
 }

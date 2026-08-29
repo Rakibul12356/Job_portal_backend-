@@ -2,12 +2,14 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"mime/multipart"
 	"time"
 
 	"github.com/rakib/job-portal-api/internal/domain"
 	"github.com/rakib/job-portal-api/internal/dto"
 	appErrors "github.com/rakib/job-portal-api/internal/pkg/errors"
+	"github.com/rakib/job-portal-api/internal/pkg/utils"
 	"github.com/rakib/job-portal-api/internal/repository"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -30,6 +32,7 @@ type applicationService struct {
 	profileRepo    repository.ProfileRepository
 	userRepo       repository.UserRepository
 	storageService StorageService
+	notifService   NotificationService
 }
 
 func NewApplicationService(
@@ -39,6 +42,7 @@ func NewApplicationService(
 	profileRepo repository.ProfileRepository,
 	userRepo repository.UserRepository,
 	storageService StorageService,
+	notifService NotificationService,
 ) ApplicationService {
 	return &applicationService{
 		appRepo:        appRepo,
@@ -47,6 +51,7 @@ func NewApplicationService(
 		profileRepo:    profileRepo,
 		userRepo:       userRepo,
 		storageService: storageService,
+		notifService:   notifService,
 	}
 }
 
@@ -243,6 +248,52 @@ func (s *applicationService) UpdateApplicantStatus(ctx context.Context, companyI
 	err = s.appRepo.Update(ctx, app)
 	if err != nil {
 		return appErrors.NewInternalError("Failed to update status")
+	}
+
+	// Trigger notifications and emails if status changes to shortlisted
+	if status == domain.AppStatusShortlisted {
+		// Fetch job details for title
+		job, err := s.jobRepo.FindByID(ctx, app.JobID)
+		jobTitle := "Job Position"
+		if err == nil && job != nil {
+			jobTitle = job.Title
+		}
+
+		// Fetch company details for company name
+		company, err := s.companyRepo.FindByID(ctx, app.CompanyID)
+		companyName := "Employer"
+		if err == nil && company != nil {
+			companyName = company.Name
+		}
+
+		// Create in-app Notification
+		title := "Application Shortlisted!"
+		msg := fmt.Sprintf("Congratulations! You have been shortlisted for the role of %s at %s.", jobTitle, companyName)
+		_ = s.notifService.Create(ctx, app.UserID, title, msg, "shortlist")
+
+		// Fetch user details for email
+		user, err := s.userRepo.FindByID(ctx, app.UserID)
+		if err == nil && user != nil {
+			subject := fmt.Sprintf("Congratulations! You are shortlisted for %s", jobTitle)
+			emailBody := fmt.Sprintf(`
+				<div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 8px; max-width: 600px; margin: 0 auto;">
+					<h2 style="color: #4CAF50; text-align: center;">Application Shortlisted!</h2>
+					<p>Hello %s,</p>
+					<p>Great news! <strong>%s</strong> has shortlisted your application for the role of <strong>%s</strong>.</p>
+					<p>They will contact you soon for the next steps. Please log in to your dashboard to view details and message the employer.</p>
+					<div style="text-align: center; margin: 20px 0;">
+						<a href="http://localhost:5174/dashboard" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; font-weight: bold;">Go to Dashboard</a>
+					</div>
+					<hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
+					<p style="font-size: 12px; color: #666; text-align: center;">Online Job Portal &copy; 2026. All rights reserved.</p>
+				</div>
+			`, user.Name, companyName, jobTitle)
+
+			// Send email in a non-blocking goroutine to keep API response instant
+			go func(email, sub, body string) {
+				_ = utils.SendEmail(email, sub, body)
+			}(user.Email, subject, emailBody)
+		}
 	}
 
 	return nil

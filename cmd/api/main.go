@@ -21,6 +21,10 @@ import (
 func main() {
 	log.Println("Starting Job Portal REST API Backend...")
 
+	// Create root context for graceful worker shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// 1. Load configuration
 	cfg := config.LoadConfig()
 
@@ -38,12 +42,14 @@ func main() {
 	appRepo := repository.NewApplicationRepository(db)
 	savedRepo := repository.NewSavedJobRepository(db)
 	chatRepo := repository.NewChatRepository(db)
+	notifRepo := repository.NewNotificationRepository(db)
 
 	// 5. Initialize Service Layer
 	storageService := service.NewStorageService()
 	authService := service.NewAuthService(userRepo, companyRepo, profileRepo, db)
 	jobService := service.NewJobService(jobRepo, companyRepo)
-	appService := service.NewApplicationService(appRepo, jobRepo, companyRepo, profileRepo, userRepo, storageService)
+	notifService := service.NewNotificationService(notifRepo)
+	appService := service.NewApplicationService(appRepo, jobRepo, companyRepo, profileRepo, userRepo, storageService, notifService)
 	profileService := service.NewProfileService(profileRepo, userRepo, storageService)
 	companyService := service.NewCompanyService(companyRepo, jobRepo, userRepo, storageService)
 	savedJobService := service.NewSavedJobService(savedRepo, jobRepo, jobService, companyRepo)
@@ -59,6 +65,7 @@ func main() {
 	dashboardHandler := handler.NewDashboardHandler(dashboardService)
 	healthHandler := handler.NewHealthHandler()
 	chatHandler := handler.NewChatHandler(chatService)
+	notifHandler := handler.NewNotificationHandler(notifService)
 
 	savedJobH := handler.NewSavedJobHandler(savedJobService)
 	router.InitSavedJobHandler(savedJobH)
@@ -73,7 +80,11 @@ func main() {
 		dashboardHandler,
 		healthHandler,
 		chatHandler,
+		notifHandler,
 	)
+
+	// Start background job alerts worker daemon
+	go service.StartJobAlertsWorker(ctx, userRepo, profileRepo, jobRepo, companyRepo)
 
 	// 8. Start HTTP Server with Graceful Shutdown
 	server := &http.Server{
@@ -95,12 +106,13 @@ func main() {
 	<-quit
 
 	log.Println("Shutting down API server gracefully...")
+	cancel() // Terminate background workers
 
 	// Timeout context for shutdown draining
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
 
-	if err := server.Shutdown(ctx); err != nil {
+	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Fatalf("Server forced to shutdown: %v", err)
 	}
 
